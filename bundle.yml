@@ -5,7 +5,7 @@ resources:
   pipelines:
     medallion_pipeline:
       name: medallion_pipeline
-      target: default
+      target: default   # schema/catalog target for the pipeline's tables
       libraries:
         - notebook:
             path: notebooks/bronze_ingestion.py
@@ -13,4 +13,11 @@ resources:
             path: notebooks/silver_cleaning.py
         - notebook:
             path: notebooks/gold_features.py
+
+targets:
+  default:
+    mode: development
+    default: true
+    workspace:
+      host: https://dbc-4cfe513d-9a1c.cloud.databricks.com
 
