@@ -34,6 +34,7 @@ def load_breast_cancer_df() -> DataFrame:
     df = pd.DataFrame(data.data, columns=data.feature_names)
     df[TARGET_COLUMN] = data.target
     df[ID_COLUMN] = range(1, len(df) + 1)
+    df.columns = [col.replace(" ", "_") for col in df.columns]
 
     spark = SparkSession.builder.getOrCreate()
     return spark.createDataFrame(df)
