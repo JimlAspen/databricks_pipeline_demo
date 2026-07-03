@@ -21,4 +21,4 @@ targets:
     mode: development
     default: true
     workspace:
-      host: ${{ secrets.DATABRICKS_HOST }}
+      host: https://dbc-4cfe513d-9a1c.cloud.databricks.com
