@@ -6,6 +6,8 @@ Gold feature engineering notebook.
 This notebook loads the Silver dataset, applies deterministic feature
 engineering, and writes the Gold Delta table.
 """
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
 from src.config.paths import SILVER_PATH, GOLD_PATH
 from src.data.io import read_delta, write_delta
