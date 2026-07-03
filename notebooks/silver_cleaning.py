@@ -6,6 +6,8 @@ Silver cleaning notebook.
 This notebook loads the Bronze dataset, validates its schema, applies
 cleaning transformations, and writes the Silver Delta table.
 """
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
 from src.config.paths import BRONZE_PATH, SILVER_PATH
 from src.data.io import read_delta, write_delta
