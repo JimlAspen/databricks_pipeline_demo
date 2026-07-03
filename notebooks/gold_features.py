@@ -1,3 +1,5 @@
+# Databricks notebook source
+# COMMAND ----------
 """
 Gold feature engineering notebook.
 
