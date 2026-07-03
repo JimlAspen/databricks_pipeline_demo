@@ -11,27 +11,11 @@ jobs:
       DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
-      - name: Check secret is non-empty
-        env:
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-        run: |
-          echo "Token length: ${#DATABRICKS_TOKEN}"
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install Databricks CLI
-        run: curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-
-      - name: Test raw API call
-        env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-        run: |
-          curl -s -o /dev/null -w "%{http_code}\n" \
-            -H "Authorization: Bearer $DATABRICKS_TOKEN" \
-            "$DATABRICKS_HOST/api/2.0/preview/scim/v2/Me"
-            - name: Validate bundle
-              run: databricks bundle validate
+        run: curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh 
 
       - name: Deploy bundle
         run: databricks bundle deploy
