@@ -1,20 +1,38 @@
 # Databricks notebook source
 # COMMAND ----------
-"""
-Gold feature engineering notebook.
+"""Gold feature engineering notebook.
 
-This notebook loads the Silver dataset, applies deterministic feature
-engineering, and writes the Gold Delta table.
+Reads the Silver table, applies deterministic feature engineering,
+and declares the result as the Gold Delta Live Table. The pipeline
+engine handles writing the table into the configured Unity Catalog
+schema; this notebook only defines the transformation, it never
+writes data directly.
 """
-import sys, os
+import sys
+import os
+
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
-from src.config.paths import SILVER_PATH, GOLD_PATH
-from src.data.io import read_delta, write_delta
+import dlt
 from src.features.build_gold_features import build_gold_features
 
-silver_df = read_delta(path=SILVER_PATH)
+# COMMAND ----------
 
-gold_df = build_gold_features(silver_df=silver_df)
 
-write_delta(df=gold_df, path=GOLD_PATH)
+@dlt.table(
+    name="gold_breast_cancer_features",
+    comment="Feature-engineered breast cancer dataset, ready for training.",
+)
+def gold_breast_cancer_features():
+    """Build the Gold feature table from the Silver breast cancer table.
+
+    Reads the Silver table and applies deterministic feature
+    engineering.
+
+    Returns
+    -------
+    pyspark.sql.DataFrame
+        The feature-engineered breast cancer dataset.
+    """
+    silver_df = dlt.read("silver_breast_cancer")
+    return build_gold_features(silver_df=silver_df)
