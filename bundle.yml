@@ -6,6 +6,7 @@ resources:
     medallion_pipeline:
       name: medallion_pipeline
       target: default   # schema/catalog target for the pipeline's tables
+      serverless: true  
       libraries:
         - notebook:
             path: notebooks/bronze_ingestion.py
