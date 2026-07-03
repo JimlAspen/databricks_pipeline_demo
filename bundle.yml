@@ -1,0 +1,66 @@
+bundle:
+  name: databricks_pipeline_demo
+  version: "1.0.0"
+
+workspace:
+  root_path: /Users/${workspace.current_user.userName}/databricks_pipeline_demo
+
+resources:
+  pipelines:
+    medallion_pipeline:
+      name: medallion_pipeline
+      target: dev
+
+      tags:
+        architecture: medallion
+        layers: bronze,silver,gold
+        domain: breast_cancer
+        type: batch
+        owner: jim
+        purpose: feature_pipeline
+
+      clusters:
+        - label: default
+          node_type_id: i3.xlarge
+          autoscale:
+            min_workers: 1
+            max_workers: 2
+
+      development: true
+
+      libraries:
+        - notebook:
+            path: notebooks/bronze_ingestion.py
+        - notebook:
+            path: notebooks/silver_cleaning.py
+        - notebook:
+            path: notebooks/gold_features.py
+
+      tasks:
+        - task_key: bronze_ingestion
+          description: "Bronze ingestion: load sklearn dataset."
+          tags:
+            layer: bronze
+          notebook_task:
+            notebook_path: notebooks/bronze_ingestion.py
+          cluster_label: default
+
+        - task_key: silver_cleaning
+          description: "Silver cleaning: validate schema and clean data."
+          tags:
+            layer: silver
+          depends_on:
+            - task_key: bronze_ingestion
+          notebook_task:
+            notebook_path: notebooks/silver_cleaning.py
+          cluster_label: default
+
+        - task_key: gold_features
+          description: "Gold feature engineering: canonical features."
+          tags:
+            layer: gold
+          depends_on:
+            - task_key: silver_cleaning
+          notebook_task:
+            notebook_path: notebooks/gold_features.py
+          cluster_label: default
