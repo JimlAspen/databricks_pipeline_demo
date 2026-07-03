@@ -1,45 +1,39 @@
-"""
-Module for loading the sklearn breast cancer dataset and writing it to the
-Bronze Delta layer. This module is deterministic and used as the first step
-in the medallion architecture pipeline.
-"""
+"""Load the sklearn breast cancer dataset into a Spark DataFrame.
 
+This module is deterministic and used as the first step in the
+medallion architecture pipeline. It only loads and shapes data; the
+Lakeflow pipeline engine is responsible for writing the result to the
+Bronze Delta table.
+"""
 from typing import Any
 
 import pandas as pd
+from pyspark.sql import DataFrame, SparkSession
 from sklearn.datasets import load_breast_cancer
-from pyspark.sql import SparkSession
 
 from src.config.features import ID_COLUMN, TARGET_COLUMN
-from src.data.io import write_delta
 
 
-def load_and_write_bronze(bronze_path: str) -> None:
-    """
-    Load the sklearn breast cancer dataset and write it to the Bronze Delta
-    table.
+def load_breast_cancer_df() -> DataFrame:
+    """Load the sklearn breast cancer dataset as a Spark DataFrame.
 
     The function performs the following steps:
+
     - Loads the dataset from sklearn.
     - Converts it to a pandas DataFrame.
     - Adds a synthetic patient ID column.
-    - Converts the DataFrame to a Spark DataFrame.
-    - Writes the result to the Bronze Delta path.
+    - Converts the result to a Spark DataFrame.
 
-    Args:
-        bronze_path (str): The DBFS path where the Bronze Delta table
-            should be written.
-
-    Returns:
-        None
+    Returns
+    -------
+    pyspark.sql.DataFrame
+        The breast cancer dataset with feature columns, a target
+        column, and a synthetic patient ID column.
     """
     data: Any = load_breast_cancer()
-
     df = pd.DataFrame(data.data, columns=data.feature_names)
     df[TARGET_COLUMN] = data.target
     df[ID_COLUMN] = range(1, len(df) + 1)
 
     spark = SparkSession.builder.getOrCreate()
-    spark_df = spark.createDataFrame(df)
-
-    write_delta(df=spark_df, path=bronze_path)
+    return spark.createDataFrame(df)
