@@ -5,8 +5,9 @@ resources:
   pipelines:
     medallion_pipeline:
       name: medallion_pipeline
-      target: default   # schema/catalog target for the pipeline's tables
-      serverless: true  
+      catalog: main              # <-- add this
+      target: default            # this becomes the schema name
+      serverless: true
       libraries:
         - notebook:
             path: notebooks/bronze_ingestion.py
@@ -20,5 +21,4 @@ targets:
     mode: development
     default: true
     workspace:
-      host: https://dbc-4cfe513d-9a1c.cloud.databricks.com
-
+      host: https://your-workspace-url.cloud.databricks.com
