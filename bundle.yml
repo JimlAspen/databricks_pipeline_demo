@@ -6,17 +6,11 @@ resources:
     medallion_pipeline:
       name: medallion_pipeline
       target: default
-      definition:
-        tasks:
-          - task_key: bronze
-            notebook_path: notebooks/bronze_ingestion.py
+      libraries:
+        - notebook:
+            path: notebooks/bronze_ingestion.py
+        - notebook:
+            path: notebooks/silver_cleaning.py
+        - notebook:
+            path: notebooks/gold_features.py
 
-          - task_key: silver
-            depends_on:
-              - bronze
-            notebook_path: notebooks/silver_cleaning.py
-
-          - task_key: gold
-            depends_on:
-              - silver
-            notebook_path: notebooks/gold_features.py
