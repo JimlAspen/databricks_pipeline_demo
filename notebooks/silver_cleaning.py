@@ -1,22 +1,39 @@
 # Databricks notebook source
 # COMMAND ----------
-"""
-Silver cleaning notebook.
+"""Silver cleaning notebook.
 
-This notebook loads the Bronze dataset, validates its schema, applies
-cleaning transformations, and writes the Silver Delta table.
+Reads the Bronze table, validates its schema, applies cleaning
+transformations, and declares the result as the Silver Delta Live
+Table. The pipeline engine handles writing the table into the
+configured Unity Catalog schema; this notebook only defines the
+transformation, it never writes data directly.
 """
-import sys, os
+import sys
+import os
+
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
-from src.config.paths import BRONZE_PATH, SILVER_PATH
-from src.data.io import read_delta, write_delta
+import dlt
 from src.scoring.validation import validate_bronze_schema
 
-bronze_df = read_delta(path=BRONZE_PATH)
+# COMMAND ----------
 
-validate_bronze_schema(bronze_df=bronze_df)
 
-silver_df = bronze_df.dropna()
+@dlt.table(
+    name="silver_breast_cancer",
+    comment="Cleaned breast cancer dataset, validated and null-dropped.",
+)
+def silver_breast_cancer():
+    """Clean the Bronze breast cancer table into the Silver layer.
 
-write_delta(df=silver_df, path=SILVER_PATH)
+    Reads the Bronze table, validates its schema, and drops rows
+    containing null values.
+
+    Returns
+    -------
+    pyspark.sql.DataFrame
+        The cleaned breast cancer dataset with nulls removed.
+    """
+    bronze_df = dlt.read("bronze_breast_cancer")
+    validate_bronze_schema(bronze_df=bronze_df)
+    return bronze_df.dropna()
