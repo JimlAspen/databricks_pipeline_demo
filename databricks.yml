@@ -59,7 +59,18 @@ resources:
           notebook_task:
             notebook_path: notebooks/train_model_b.py
 
+        - task_key: select_and_register
+          depends_on:
+            - task_key: train_model_a
+            - task_key: train_model_b
+          notebook_task:
+            notebook_path: notebooks/select_and_register.py
 
+        - task_key: batch_score
+          depends_on:
+            - task_key: select_and_register
+          notebook_task:
+            notebook_path: notebooks/batch_score.py
 targets:
   dev:
     mode: development
