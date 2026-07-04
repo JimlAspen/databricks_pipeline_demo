@@ -2,35 +2,32 @@
 # COMMAND ----------
 """Bronze ingestion notebook.
 
-Loads the sklearn breast cancer dataset and declares it as the Bronze
-Delta Live Table. The pipeline engine handles writing the table into
-the configured Unity Catalog schema; this notebook only defines the
-transformation, it never writes data directly.
+Loads the sklearn diabetes progression dataset and declares it as the
+Bronze Delta Live Table. The pipeline engine handles writing the
+table into the configured Unity Catalog schema; this notebook only
+defines the transformation, it never writes data directly.
 """
-
-import os
 import sys
+import os
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
 import dlt
-
-from src.data.load_breast_cancer import load_breast_cancer_df
+from src.data.load_diabetes import load_diabetes_df
 
 # COMMAND ----------
 
 
 @dlt.table(
-    name="bronze_breast_cancer",
-    comment="Raw sklearn breast cancer dataset, ingested as-is.",
+    name="bronze_diabetes",
+    comment="Raw sklearn diabetes progression dataset, ingested as-is.",
 )
-def bronze_breast_cancer():
-    """Return the raw breast cancer dataset as a Spark DataFrame.
+def bronze_diabetes():
+    """Return the raw diabetes dataset as a Spark DataFrame.
 
     Returns
     -------
     pyspark.sql.DataFrame
-        The unmodified breast cancer dataset loaded from sklearn.
-
+        The unmodified diabetes progression dataset loaded from sklearn.
     """
-    return load_breast_cancer_df()
+    return load_diabetes_df()
