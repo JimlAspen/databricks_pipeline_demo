@@ -20,6 +20,7 @@ from sklearn.preprocessing import StandardScaler
 
 from src.config.features import FEATURE_COLUMNS, TARGET_COLUMN
 
+
 class ProbaWrapper(mlflow.pyfunc.PythonModel):
     """Wraps a scikit-learn classifier to output probability, not label."""
 
@@ -30,6 +31,7 @@ class ProbaWrapper(mlflow.pyfunc.PythonModel):
         ----------
         sklearn_model
             A fitted scikit-learn classifier exposing predict_proba.
+
         """
         self.sklearn_model = sklearn_model
 
@@ -49,6 +51,7 @@ class ProbaWrapper(mlflow.pyfunc.PythonModel):
         -------
         numpy.ndarray
             Predicted probability of the positive class per row.
+
         """
         return self.sklearn_model.predict_proba(model_input)[:, 1]
 
@@ -240,4 +243,3 @@ def run_hyperparameter_search(
         run_id = parent_run.info.run_id
 
     return study, run_id
-    
