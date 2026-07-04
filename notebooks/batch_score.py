@@ -36,7 +36,9 @@ validate_train_scoring_schema(scoring_df, "Scoring set")
 scored_df = scoring_df
 for alias in ["champion", "challenger"]:
     model_uri = f"models:/{MODEL_NAME}@{alias}"
-    predict = mlflow.pyfunc.spark_udf(spark, model_uri=model_uri, result_type="double")
+    predict = mlflow.pyfunc.spark_udf(
+        spark, model_uri=model_uri, result_type="double", env_manager="local"
+    )
     scored_df = scored_df.withColumn(f"prediction_{alias}", predict(*FEATURE_COLUMNS))
 
 scored_df.write.mode("overwrite").saveAsTable(SCORED_OUTPUT_TABLE)
