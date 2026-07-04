@@ -8,10 +8,10 @@ dbutils.library.restartPython()
 # COMMAND ----------
 """Batch scoring notebook.
 
-Scores the held-out scoring set with both the champion and challenger
-models, writes both sets of predictions, and reports each model's
-actual test-set AUC for comparison against their validation-time
-ranking.
+Validates the scoring set, scores it with both the champion and
+challenger models, writes both sets of predictions, and reports each
+model's actual test-set AUC for comparison against their
+validation-time ranking.
 """
 import sys
 import os
@@ -24,6 +24,7 @@ from sklearn.metrics import roc_auc_score
 
 from src.config.features import FEATURE_COLUMNS, TARGET_COLUMN
 from src.config.paths import SCORED_OUTPUT_TABLE, SCORING_TABLE
+from src.scoring.validation import validate_train_scoring_schema
 
 # COMMAND ----------
 
@@ -31,6 +32,7 @@ MODEL_NAME = "main.ml.breast_cancer_model"
 
 spark = SparkSession.builder.getOrCreate()
 scoring_df = spark.table(SCORING_TABLE)
+validate_train_scoring_schema(scoring_df, "Scoring set")
 
 scored_df = scoring_df
 for alias in ["champion", "challenger"]:
