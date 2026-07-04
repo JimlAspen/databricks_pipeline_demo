@@ -28,7 +28,7 @@ resources:
           depends_on:
             - task_key: run_medallion
           notebook_task:
-            notebook_path: ../notebooks/split_data.py
+            notebook_path: notebooks/split_data.py
             
 targets:
   default:
