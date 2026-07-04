@@ -32,3 +32,213 @@ class IdentityWrapper(mlflow.pyfunc.PythonModel):
         """Store the underlying scikit-learn regressor.
 
         Parameters
+        ----------
+        sklearn_model
+            A fitted scikit-learn regressor exposing predict.
+        """
+        self.sklearn_model = sklearn_model
+
+    def predict(self, context, model_input, params=None):
+        """Return the point prediction for each input row.
+
+        Parameters
+        ----------
+        context
+            MLflow pyfunc context, unused here.
+        model_input
+            Input features to score.
+        params
+            Optional inference parameters, unused here.
+
+        Returns
+        -------
+        numpy.ndarray
+            Predicted disease progression score per row.
+        """
+        return self.sklearn_model.predict(model_input)
+
+
+def prepare_train_val_split(
+    train_pdf: pd.DataFrame,
+    val_fraction: float = 0.2,
+    seed: int = 42,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
+    """Split the training set into train/validation subsets.
+
+    Parameters
+    ----------
+    train_pdf : pandas.DataFrame
+        The training data, already loaded as a pandas DataFrame.
+    val_fraction : float, optional
+        Fraction of rows held out for validation, by default 0.2.
+    seed : int, optional
+        Random seed for reproducibility, by default 42.
+
+    Returns
+    -------
+    tuple[pandas.DataFrame, pandas.DataFrame, pandas.Series, pandas.Series]
+        X_train, X_val, y_train, y_val.
+    """
+    X = train_pdf[FEATURE_COLUMNS]
+    y = train_pdf[TARGET_COLUMN]
+    return train_test_split(X, y, test_size=val_fraction, random_state=seed)
+
+
+def suggest_linear_regression_params(trial: optuna.Trial) -> dict[str, Any]:
+    """Suggest a hyperparameter set for Linear Regression.
+
+    Parameters
+    ----------
+    trial : optuna.Trial
+        The current Optuna trial.
+
+    Returns
+    -------
+    dict[str, Any]
+        Hyperparameters to build the model with.
+    """
+    return {
+        "fit_intercept": trial.suggest_categorical("fit_intercept", [True, False]),
+        "positive": trial.suggest_categorical("positive", [True, False]),
+    }
+
+
+def suggest_gradient_boosting_params(trial: optuna.Trial) -> dict[str, Any]:
+    """Suggest a hyperparameter set for Gradient Boosting Regressor.
+
+    Parameters
+    ----------
+    trial : optuna.Trial
+        The current Optuna trial.
+
+    Returns
+    -------
+    dict[str, Any]
+        Hyperparameters to build the model with.
+    """
+    return {
+        "n_estimators": trial.suggest_int("n_estimators", 50, 200),
+        "max_depth": trial.suggest_int("max_depth", 2, 6),
+        "learning_rate": trial.suggest_float("learning_rate", 1e-3, 0.3, log=True),
+    }
+
+
+MODEL_REGISTRY = {
+    "linear_regression": {
+        "suggest_params": suggest_linear_regression_params,
+        "build_model": lambda params: LinearRegression(**params),
+    },
+    "gradient_boosting": {
+        "suggest_params": suggest_gradient_boosting_params,
+        "build_model": lambda params: GradientBoostingRegressor(**params),
+    },
+}
+
+
+def make_objective(
+    model_type: str,
+    X_train: pd.DataFrame,
+    X_val: pd.DataFrame,
+    y_train: pd.Series,
+    y_val: pd.Series,
+):
+    """Build an Optuna objective function for the given model type.
+
+    Parameters
+    ----------
+    model_type : str
+        One of the keys in MODEL_REGISTRY.
+    X_train, X_val, y_train, y_val
+        Train/validation splits produced by prepare_train_val_split.
+
+    Returns
+    -------
+    Callable[[optuna.Trial], float]
+        An objective function suitable for optuna.Study.optimize.
+        Returns validation RMSE; Optuna direction should be minimize.
+    """
+    model_spec = MODEL_REGISTRY[model_type]
+
+    def objective(trial: optuna.Trial) -> float:
+        params = model_spec["suggest_params"](trial)
+
+        with mlflow.start_run(nested=True):
+            model = model_spec["build_model"](params)
+            model.fit(X_train, y_train)
+
+            val_preds = model.predict(X_val)
+            val_rmse = mean_squared_error(y_val, val_preds, squared=False)
+            val_r2 = r2_score(y_val, val_preds)
+
+            mlflow.log_params(params)
+            mlflow.log_metric("val_rmse", val_rmse)
+            mlflow.log_metric("val_r2", val_r2)
+
+        return val_rmse
+
+    return objective
+
+
+def run_hyperparameter_search(
+    model_type: str,
+    train_pdf: pd.DataFrame,
+    n_trials: int = 15,
+    seed: int = 42,
+) -> tuple[optuna.Study, str]:
+    """Run an Optuna hyperparameter search for the given model type.
+
+    Logs a parent MLflow run containing all trials as nested child
+    runs, and the best model refit on the full training set as the
+    parent run's own logged model.
+
+    Parameters
+    ----------
+    model_type : str
+        One of the keys in MODEL_REGISTRY.
+    train_pdf : pandas.DataFrame
+        The training data, already loaded as a pandas DataFrame.
+    n_trials : int, optional
+        Number of Optuna trials to run, by default 15.
+    seed : int, optional
+        Random seed for reproducibility, by default 42.
+
+    Returns
+    -------
+    tuple[optuna.Study, str]
+        The completed Optuna study (with .best_params and .best_value
+        as validation RMSE), and the MLflow run ID of the parent run.
+    """
+    X_train, X_val, y_train, y_val = prepare_train_val_split(
+        train_pdf=train_pdf, seed=seed
+    )
+
+    mlflow.sklearn.autolog(log_models=False)
+
+    with mlflow.start_run(run_name=f"{model_type}_hyperparam_search") as parent_run:
+        study = optuna.create_study(direction="minimize")
+        objective = make_objective(model_type, X_train, X_val, y_train, y_val)
+        study.optimize(objective, n_trials=n_trials)
+
+        best_model_spec = MODEL_REGISTRY[model_type]
+        best_model = best_model_spec["build_model"](study.best_params)
+        best_model.fit(X_train, y_train)
+
+        best_val_preds = best_model.predict(X_val)
+        best_val_r2 = r2_score(y_val, best_val_preds)
+
+        wrapped_model = IdentityWrapper(best_model)
+        signature = infer_signature(X_train, wrapped_model.predict(None, X_train))
+
+        mlflow.log_params(study.best_params)
+        mlflow.log_metric("best_val_rmse", study.best_value)
+        mlflow.log_metric("best_val_r2", best_val_r2)
+        mlflow.pyfunc.log_model(
+            "model",
+            python_model=wrapped_model,
+            signature=signature,
+            input_example=X_train.head(5),
+        )
+
+        run_id = parent_run.info.run_id
+
+    return study, run_id
