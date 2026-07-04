@@ -14,7 +14,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
 import dlt
-from src.scoring.validation import validate_bronze_schema
+from src.scoring.validation import validate_bronze_schema, validate_silver_schema
 
 # COMMAND ----------
 
