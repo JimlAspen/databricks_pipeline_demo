@@ -6,10 +6,17 @@ from typing import List
 
 from pyspark.sql import DataFrame
 
-from src.config.features import FEATURE_COLUMNS, ID_COLUMN, TARGET_COLUMN
+from src.config.features import (
+    FEATURE_COLUMNS,
+    GOLD_FEATURE_COLUMNS,
+    ID_COLUMN,
+    TARGET_COLUMN,
+)
 
 
-def _validate_columns_present(df: DataFrame, expected_columns: List[str], layer_name: str) -> None:
+def _validate_columns_present(
+    df: DataFrame, expected_columns: List[str], layer_name: str
+) -> None:
     """Validate that a DataFrame contains all expected columns.
 
     Parameters
@@ -67,12 +74,15 @@ def validate_silver_schema(silver_df: DataFrame) -> None:
     expected_columns = FEATURE_COLUMNS + [TARGET_COLUMN, ID_COLUMN]
     _validate_columns_present(silver_df, expected_columns, "Silver")
 
-    null_counts = silver_df.select(
-        [
-            silver_df[c].isNull().cast("int").alias(c)
-            for c in expected_columns
-        ]
-    ).groupBy().sum().collect()[0].asDict()
+    null_counts = (
+        silver_df.select(
+            [silver_df[c].isNull().cast("int").alias(c) for c in expected_columns]
+        )
+        .groupBy()
+        .sum()
+        .collect()[0]
+        .asDict()
+    )
 
     columns_with_nulls = [
         col.replace("sum(", "").replace(")", "")
@@ -85,20 +95,17 @@ def validate_silver_schema(silver_df: DataFrame) -> None:
         )
 
 
-def validate_gold_schema(gold_df: DataFrame, expected_columns: List[str]) -> None:
+def validate_gold_schema(gold_df: DataFrame) -> None:
     """Validate that the Gold dataset contains all required columns.
 
     Parameters
     ----------
     gold_df : pyspark.sql.DataFrame
         The Gold Spark DataFrame.
-    expected_columns : list[str]
-        The engineered feature columns (plus target/ID) expected in
-        the Gold table.
 
     Raises
     ------
     ValueError
         If any expected column is missing.
     """
-    _validate_columns_present(gold_df, expected_columns, "Gold")
+    _validate_columns_present(gold_df, GOLD_FEATURE_COLUMNS, "Gold")
