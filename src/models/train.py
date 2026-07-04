@@ -145,7 +145,7 @@ def run_hyperparameter_search(
     train_pdf: pd.DataFrame,
     n_trials: int = 15,
     seed: int = 42,
-) -> optuna.Study:
+) -> tuple[optuna.Study, str]:
     """Run an Optuna hyperparameter search for the given model type.
 
     Logs a parent MLflow run containing all trials as nested child
@@ -165,10 +165,9 @@ def run_hyperparameter_search(
 
     Returns
     -------
-    optuna.Study
-        The completed Optuna study, with .best_params and .best_value
-        available.
-
+    tuple[optuna.Study, str]
+        The completed Optuna study (with .best_params and .best_value
+        available), and the MLflow run ID of the parent run.
     """
     X_train, X_val, y_train, y_val = prepare_train_val_split(
         train_pdf=train_pdf, seed=seed
@@ -176,7 +175,7 @@ def run_hyperparameter_search(
 
     mlflow.sklearn.autolog(log_models=False)
 
-    with mlflow.start_run(run_name=f"{model_type}_hyperparam_search"):
+    with mlflow.start_run(run_name=f"{model_type}_hyperparam_search") as parent_run:
         study = optuna.create_study(direction="maximize")
         objective = make_objective(model_type, X_train, X_val, y_train, y_val)
         study.optimize(objective, n_trials=n_trials)
@@ -189,4 +188,6 @@ def run_hyperparameter_search(
         mlflow.log_metric("best_val_auc", study.best_value)
         mlflow.sklearn.log_model(best_model, artifact_path="model")
 
-    return study
+        run_id = parent_run.info.run_id
+
+    return study, run_id
