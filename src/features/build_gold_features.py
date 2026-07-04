@@ -3,6 +3,7 @@
 This step applies deterministic, model-agnostic feature selection and
 ensures that the resulting table contains only canonical features.
 """
+
 from typing import List
 
 from pyspark.sql import DataFrame
@@ -25,6 +26,7 @@ def build_gold_features(silver_df: DataFrame) -> DataFrame:
     -------
     pyspark.sql.DataFrame
         A Spark DataFrame containing the Gold feature layer.
+
     """
     selected_columns: List[str] = FEATURE_COLUMNS + [TARGET_COLUMN, ID_COLUMN]
     return silver_df.select(*selected_columns)
