@@ -1,4 +1,5 @@
 """Unit tests for the train/scoring split function."""
+
 import pytest
 from pyspark.sql import SparkSession
 
