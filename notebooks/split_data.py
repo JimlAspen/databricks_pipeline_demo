@@ -18,10 +18,7 @@ from pyspark.sql import SparkSession
 from src.data.split import split_train_scoring
 
 # COMMAND ----------
-
-GOLD_TABLE = "main.default.gold_breast_cancer_features"
-TRAIN_TABLE = "main.default.train_set"
-SCORING_TABLE = "main.default.scoring_set"
+from src.config.paths import GOLD_TABLE, TRAIN_TABLE, SCORING_TABLE
 
 spark = SparkSession.builder.getOrCreate()
 gold_df = spark.table(GOLD_TABLE)
