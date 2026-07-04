@@ -1,4 +1,5 @@
 """Unit tests for the Bronze layer's data loading function."""
+
 import pytest
 from pyspark.sql import SparkSession
 
@@ -47,4 +48,3 @@ def test_load_diabetes_df_target_is_continuous(spark):
     df = load_diabetes_df()
     distinct_count = df.select(TARGET_COLUMN).distinct().count()
     assert distinct_count > 50
-
