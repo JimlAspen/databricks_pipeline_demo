@@ -15,6 +15,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+
 from src.config.features import FEATURE_COLUMNS, TARGET_COLUMN
 
 
@@ -85,8 +88,6 @@ def suggest_gradient_boosting_params(trial: optuna.Trial) -> dict[str, Any]:
         "learning_rate": trial.suggest_float("learning_rate", 1e-3, 0.3, log=True),
     }
 
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
 
 MODEL_REGISTRY = {
     "logistic_regression": {
