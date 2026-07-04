@@ -5,6 +5,7 @@ medallion architecture pipeline. It only loads and shapes data; the
 Lakeflow pipeline engine is responsible for writing the result to the
 Bronze Delta table.
 """
+
 from typing import Any
 
 import pandas as pd
@@ -31,6 +32,7 @@ def load_diabetes_df() -> DataFrame:
         The diabetes dataset with feature columns, a continuous
         disease progression target column, and a synthetic patient
         ID column.
+
     """
     data: Any = load_diabetes()
     df = pd.DataFrame(data.data, columns=data.feature_names)
