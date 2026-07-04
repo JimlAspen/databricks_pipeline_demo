@@ -40,9 +40,11 @@ def test_load_diabetes_df_id_column_is_sequential(spark):
 
 
 def test_load_diabetes_df_target_is_continuous(spark):
-    """The target column should have more than a handful of distinct
-    values, confirming it is a continuous measure, not a class label.
+    """Confirm the target column is continuous, not a class label.
+
+    Checks that there are more than a handful of distinct values.
     """
     df = load_diabetes_df()
     distinct_count = df.select(TARGET_COLUMN).distinct().count()
     assert distinct_count > 50
+
