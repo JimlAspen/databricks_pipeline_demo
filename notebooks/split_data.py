@@ -23,8 +23,10 @@ from src.config.paths import GOLD_TABLE, TRAIN_TABLE, SCORING_TABLE
 spark = SparkSession.builder.getOrCreate()
 gold_df = spark.table(GOLD_TABLE)
 
+from src.config.features import TARGET_COLUMN
+
 train_df, scoring_df = split_train_scoring(
-    df=gold_df, train_fraction=0.5, seed=42
+    df=gold_df, train_fraction=0.5, seed=42, stratify_col=TARGET_COLUMN
 )
 
 train_df.write.mode("overwrite").saveAsTable(TRAIN_TABLE)
