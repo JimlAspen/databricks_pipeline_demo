@@ -36,4 +36,6 @@ def silver_breast_cancer():
     """
     bronze_df = dlt.read("bronze_breast_cancer")
     validate_bronze_schema(bronze_df=bronze_df)
-    return bronze_df.dropna()
+    silver_df = bronze_df.dropna()
+    validate_silver_schema(silver_df=silver_df)
+    return silver_df
