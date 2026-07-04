@@ -1,5 +1,6 @@
 # tests/test_validation.py
 """Unit tests for schema validation utilities."""
+
 import pytest
 from pyspark.sql import SparkSession
 
@@ -18,9 +19,7 @@ def spark():
 
 def test_validate_bronze_schema_passes_with_all_columns(spark, monkeypatch):
     """Should not raise when all expected columns are present."""
-    monkeypatch.setattr(
-        "src.scoring.validation.FEATURE_COLUMNS", ["feature_1"]
-    )
+    monkeypatch.setattr("src.scoring.validation.FEATURE_COLUMNS", ["feature_1"])
     df = spark.createDataFrame([(1.0, 0, 1)], ["feature_1", "target", "id"])
     monkeypatch.setattr("src.scoring.validation.TARGET_COLUMN", "target")
     monkeypatch.setattr("src.scoring.validation.ID_COLUMN", "id")

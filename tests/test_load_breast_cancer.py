@@ -1,4 +1,5 @@
 """Unit tests for the Bronze layer's data loading function."""
+
 import pytest
 from pyspark.sql import SparkSession
 
@@ -45,7 +46,6 @@ def test_load_breast_cancer_df_target_is_binary(spark):
     """The target column should only contain 0 and 1."""
     df = load_breast_cancer_df()
     distinct_targets = {
-        row[TARGET_COLUMN]
-        for row in df.select(TARGET_COLUMN).distinct().collect()
+        row[TARGET_COLUMN] for row in df.select(TARGET_COLUMN).distinct().collect()
     }
     assert distinct_targets == {0, 1}

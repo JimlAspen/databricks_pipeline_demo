@@ -1,4 +1,5 @@
 """Unit tests for the Gold feature engineering function."""
+
 import pytest
 from pyspark.sql import SparkSession
 

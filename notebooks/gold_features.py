@@ -8,6 +8,7 @@ engine handles writing the table into the configured Unity Catalog
 schema; this notebook only defines the transformation, it never
 writes data directly.
 """
+
 import os
 import sys
 

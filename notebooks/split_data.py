@@ -8,6 +8,7 @@ is a regular notebook task (not a Lakeflow pipeline stage) since the
 split is a one-time, stateful operation tied to a specific pipeline
 run, not a continuously materialized transformation.
 """
+
 import os
 import sys
 

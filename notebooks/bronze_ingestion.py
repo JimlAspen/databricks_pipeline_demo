@@ -7,6 +7,7 @@ Delta Live Table. The pipeline engine handles writing the table into
 the configured Unity Catalog schema; this notebook only defines the
 transformation, it never writes data directly.
 """
+
 import os
 import sys
 
@@ -33,4 +34,3 @@ def bronze_breast_cancer():
 
     """
     return load_breast_cancer_df()
-

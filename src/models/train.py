@@ -4,6 +4,7 @@ Provides a shared Optuna + MLflow hyperparameter search interface
 used by both candidate model notebooks (Logistic Regression and
 Gradient Boosting).
 """
+
 from typing import Any
 
 import mlflow
@@ -41,9 +42,7 @@ def prepare_train_val_split(
     """
     X = train_pdf[FEATURE_COLUMNS]
     y = train_pdf[TARGET_COLUMN]
-    return train_test_split(
-        X, y, test_size=val_fraction, random_state=seed, stratify=y
-    )
+    return train_test_split(X, y, test_size=val_fraction, random_state=seed, stratify=y)
 
 
 def suggest_logistic_regression_params(trial: optuna.Trial) -> dict[str, Any]:

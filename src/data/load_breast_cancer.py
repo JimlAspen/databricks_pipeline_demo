@@ -5,6 +5,7 @@ medallion architecture pipeline. It only loads and shapes data; the
 Lakeflow pipeline engine is responsible for writing the result to the
 Bronze Delta table.
 """
+
 from typing import Any
 
 import pandas as pd
