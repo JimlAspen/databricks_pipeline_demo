@@ -8,12 +8,13 @@ from src.features.build_gold_features import build_gold_features
 
 @pytest.fixture(scope="module")
 def spark():
+    """Provide a local SparkSession for tests."""
     return SparkSession.builder.master("local[1]").getOrCreate()
 
 
 @pytest.fixture
 def silver_df(spark):
-    """A minimal Silver-shaped DataFrame with all expected columns."""
+    """Build a minimal Silver-shaped DataFrame with all expected columns."""
     columns = GOLD_FEATURE_COLUMNS
     row = tuple(1.0 if col not in ("target", "id") else 0 for col in columns)
     return spark.createDataFrame([row], columns)

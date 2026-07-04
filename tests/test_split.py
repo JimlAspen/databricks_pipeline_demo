@@ -1,11 +1,14 @@
 # tests/test_split.py
+"""Unit tests for the train/scoring split function."""
 import pytest
 from pyspark.sql import SparkSession
+
 from src.data.split import split_train_scoring
 
 
 @pytest.fixture(scope="module")
 def spark():
+    """Provide a local SparkSession for tests."""
     return SparkSession.builder.master("local[1]").getOrCreate()
 
 

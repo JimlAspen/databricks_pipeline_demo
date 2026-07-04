@@ -29,6 +29,7 @@ def load_breast_cancer_df() -> DataFrame:
     pyspark.sql.DataFrame
         The breast cancer dataset with feature columns, a target
         column, and a synthetic patient ID column.
+
     """
     data: Any = load_breast_cancer()
     df = pd.DataFrame(data.data, columns=data.feature_names)

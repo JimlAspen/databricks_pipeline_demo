@@ -1,5 +1,5 @@
-"""
-Global settings for the breast cancer batch pipeline.
+"""Global settings for the breast cancer batch pipeline.
+
 Config-driven, deterministic, and environment-aware.
 """
 

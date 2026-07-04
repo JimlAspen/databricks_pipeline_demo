@@ -1,5 +1,5 @@
-"""
-Canonical feature list for the breast cancer dataset.
+"""Canonical feature list for the breast cancer dataset.
+
 Gold is model-agnostic; both classifiers use the same features.
 """
 

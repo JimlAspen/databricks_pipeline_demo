@@ -8,14 +8,15 @@ engine handles writing the table into the configured Unity Catalog
 schema; this notebook only defines the transformation, it never
 writes data directly.
 """
-import sys
 import os
+import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
 import dlt
-from src.scoring.validation import validate_gold_schema
+
 from src.features.build_gold_features import build_gold_features
+from src.scoring.validation import validate_gold_schema
 
 # COMMAND ----------
 
@@ -34,6 +35,7 @@ def gold_breast_cancer_features():
     -------
     pyspark.sql.DataFrame
         The feature-engineered breast cancer dataset.
+
     """
     silver_df = dlt.read("silver_breast_cancer")
     gold_df = build_gold_features(silver_df=silver_df)

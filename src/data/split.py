@@ -36,6 +36,7 @@ def split_train_scoring(
     -------
     tuple[pyspark.sql.DataFrame, pyspark.sql.DataFrame]
         A tuple of (train_df, scoring_df).
+
     """
     scoring_fraction = 1.0 - train_fraction
 

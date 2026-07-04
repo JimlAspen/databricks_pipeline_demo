@@ -12,6 +12,7 @@ from src.scoring.validation import (
 
 @pytest.fixture(scope="module")
 def spark():
+    """Provide a local SparkSession for tests."""
     return SparkSession.builder.master("local[1]").getOrCreate()
 
 
