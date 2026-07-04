@@ -1,5 +1,10 @@
 # Databricks notebook source
 # COMMAND ----------
+%pip install optuna mlflow scikit-learn pandas --quiet
+
+# COMMAND ----------
+dbutils.library.restartPython()
+# COMMAND ----------
 """Train Model B: Gradient Boosting.
 
 Loads the training set, runs an Optuna hyperparameter search over
