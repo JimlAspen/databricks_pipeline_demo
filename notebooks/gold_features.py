@@ -14,6 +14,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
 import dlt
+from src.scoring.validation import validate_gold_schema
 from src.features.build_gold_features import build_gold_features
 
 # COMMAND ----------
