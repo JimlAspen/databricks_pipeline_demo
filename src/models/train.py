@@ -168,6 +168,7 @@ def run_hyperparameter_search(
     tuple[optuna.Study, str]
         The completed Optuna study (with .best_params and .best_value
         available), and the MLflow run ID of the parent run.
+
     """
     X_train, X_val, y_train, y_val = prepare_train_val_split(
         train_pdf=train_pdf, seed=seed
