@@ -1,12 +1,20 @@
 bundle:
   name: databricks_pipeline_demo
 
+variables:
+  catalog:
+    default: main
+  medallion_schema:
+    default: medallion
+  ml_schema:
+    default: ml
+
 resources:
   pipelines:
     medallion_pipeline:
       name: medallion_pipeline
-      catalog: main              # <-- add this
-      target: default            # this becomes the schema name
+      catalog: ${var.catalog}
+      target: ${var.medallion_schema}
       serverless: true
       libraries:
         - notebook:
@@ -15,7 +23,7 @@ resources:
             path: notebooks/silver_cleaning.py
         - notebook:
             path: notebooks/gold_features.py
-            
+
   jobs:
     medallion_ml_pipeline:
       name: medallion_ml_pipeline
@@ -29,9 +37,9 @@ resources:
             - task_key: run_medallion
           notebook_task:
             notebook_path: notebooks/split_data.py
-            
+
 targets:
-  default:
+  dev:
     mode: development
     default: true
     workspace:
