@@ -1,5 +1,4 @@
-"""Unit tests for the Gold feature engineering function."""
-
+"""Unit tests for the Gold feature selection function."""
 import pytest
 from pyspark.sql import SparkSession
 
@@ -17,7 +16,7 @@ def spark():
 def silver_df(spark):
     """Build a minimal Silver-shaped DataFrame with all expected columns."""
     columns = GOLD_FEATURE_COLUMNS
-    row = tuple(1.0 if col not in ("target", "id") else 0 for col in columns)
+    row = tuple(1.0 for _ in columns)
     return spark.createDataFrame([row], columns)
 
 
