@@ -27,6 +27,15 @@ resources:
   jobs:
     medallion_ml_pipeline:
       name: medallion_ml_pipeline
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "4"
+            dependencies:
+              - --editable .
+              - optuna
+              - mlflow
+
       tasks:
         - task_key: run_medallion
           pipeline_task:
