@@ -44,3 +44,10 @@ targets:
     default: true
     workspace:
       host: https://dbc-4cfe513d-9a1c.cloud.databricks.com
+
+  prod:
+    mode: production
+    workspace:
+      host: https://dbc-4cfe513d-9a1c.cloud.databricks.com
+    run_as:
+      user_name: yjp1986@gmail.com
