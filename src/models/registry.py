@@ -3,6 +3,7 @@
 Provides functions for comparing candidate models and promoting them
 via Unity Catalog registered model aliases.
 """
+
 import mlflow
 from mlflow import MlflowClient
 
@@ -19,6 +20,7 @@ def select_best_run(candidates: list[dict]) -> tuple[dict, dict]:
     -------
     tuple[dict, dict]
         The winning candidate and the runner-up, in that order.
+
     """
     ranked = sorted(candidates, key=lambda c: c["val_auc"], reverse=True)
     return ranked[0], ranked[1]
@@ -40,6 +42,7 @@ def register_model_version(
     alias : str
         The registry alias to assign to this version (e.g. "champion",
         "challenger").
+
     """
     model_uri = f"runs:/{run_id}/model"
     registered_model = mlflow.register_model(model_uri=model_uri, name=model_name)
