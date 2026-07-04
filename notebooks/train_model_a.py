@@ -6,8 +6,9 @@ Loads the training set, runs an Optuna hyperparameter search over
 Logistic Regression, and logs all trials plus the best model to
 MLflow.
 """
-import sys
+
 import os
+import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
