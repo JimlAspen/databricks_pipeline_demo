@@ -8,7 +8,7 @@ An end-to-end data engineering and MLOps pipeline built on Databricks Free Editi
                               ┌──────────────────┐
                               │  run_medallion    │  (Lakeflow Declarative Pipeline)
                               │  bronze → silver   │
-                              │  → gold             │
+                              │  → gold            │
                               └─────────┬─────────┘
                                         │
                               ┌─────────▼─────────┐
