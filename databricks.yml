@@ -15,7 +15,21 @@ resources:
             path: notebooks/silver_cleaning.py
         - notebook:
             path: notebooks/gold_features.py
+            
+  jobs:
+    medallion_ml_pipeline:
+      name: medallion_ml_pipeline
+      tasks:
+        - task_key: run_medallion
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.medallion_pipeline.id}
 
+        - task_key: split_data
+          depends_on:
+            - task_key: run_medallion
+          notebook_task:
+            notebook_path: ../notebooks/split_data.py
+            
 targets:
   default:
     mode: development
