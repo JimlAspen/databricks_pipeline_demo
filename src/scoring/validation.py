@@ -1,19 +1,13 @@
-"""Validation utilities for the Bronze, Silver, and Gold layers.
+"""Validation utilities for the Bronze, Silver, Gold, and ML layers.
 
 Ensures each dataset meets expected schema requirements before
 progressing through the pipeline.
 """
-
 from typing import List
 
 from pyspark.sql import DataFrame
 
-from src.config.features import (
-    FEATURE_COLUMNS,
-    GOLD_FEATURE_COLUMNS,
-    ID_COLUMN,
-    TARGET_COLUMN,
-)
+from src.config.features import FEATURE_COLUMNS, GOLD_FEATURE_COLUMNS, ID_COLUMN, TARGET_COLUMN
 
 
 def _validate_columns_present(
@@ -34,7 +28,6 @@ def _validate_columns_present(
     ------
     ValueError
         If any expected column is missing.
-
     """
     missing = set(expected_columns) - set(df.columns)
     if missing:
@@ -55,7 +48,6 @@ def validate_bronze_schema(bronze_df: DataFrame) -> None:
     ------
     ValueError
         If any expected column is missing.
-
     """
     expected_columns = FEATURE_COLUMNS + [TARGET_COLUMN, ID_COLUMN]
     _validate_columns_present(bronze_df, expected_columns, "Bronze")
@@ -75,7 +67,6 @@ def validate_silver_schema(silver_df: DataFrame) -> None:
     ------
     ValueError
         If any expected column is missing, or if any nulls remain.
-
     """
     expected_columns = FEATURE_COLUMNS + [TARGET_COLUMN, ID_COLUMN]
     _validate_columns_present(silver_df, expected_columns, "Silver")
@@ -113,7 +104,6 @@ def validate_gold_schema(gold_df: DataFrame) -> None:
     ------
     ValueError
         If any expected column is missing.
-
     """
     _validate_columns_present(gold_df, GOLD_FEATURE_COLUMNS, "Gold")
 
@@ -122,7 +112,8 @@ def validate_train_scoring_schema(df: DataFrame, layer_name: str) -> None:
     """Validate a train or scoring set before use in modeling.
 
     Confirms all Gold feature columns are present, the DataFrame is
-    non-empty, and both target classes are represented.
+    non-empty, and the continuous target has no nulls and a plausible
+    (non-degenerate) range.
 
     Parameters
     ----------
@@ -134,9 +125,8 @@ def validate_train_scoring_schema(df: DataFrame, layer_name: str) -> None:
     Raises
     ------
     ValueError
-        If any expected column is missing, the DataFrame is empty, or
-        only one target class is present.
-
+        If any expected column is missing, the DataFrame is empty,
+        the target has nulls, or the target has zero variance.
     """
     _validate_columns_present(df, GOLD_FEATURE_COLUMNS, layer_name)
 
@@ -144,11 +134,16 @@ def validate_train_scoring_schema(df: DataFrame, layer_name: str) -> None:
     if row_count == 0:
         raise ValueError(f"{layer_name} validation failed. DataFrame is empty.")
 
-    distinct_targets = {
-        row[TARGET_COLUMN] for row in df.select(TARGET_COLUMN).distinct().collect()
-    }
-    if len(distinct_targets) < 2:
+    target_null_count = df.filter(df[TARGET_COLUMN].isNull()).count()
+    if target_null_count > 0:
         raise ValueError(
-            f"{layer_name} validation failed. Only one target class present: "
-            f"{distinct_targets}"
+            f"{layer_name} validation failed. Target column has "
+            f"{target_null_count} null values."
+        )
+
+    target_stats = df.agg({TARGET_COLUMN: "stddev"}).collect()[0][0]
+    if target_stats is None or target_stats == 0:
+        raise ValueError(
+            f"{layer_name} validation failed. Target column has zero "
+            "variance — cannot train or evaluate a regression model."
         )
