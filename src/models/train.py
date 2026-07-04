@@ -193,13 +193,14 @@ def run_hyperparameter_search(
         best_model = best_model_spec["build_model"](study.best_params)
         best_model.fit(X_train, y_train)
 
-        signature = infer_signature(X_train, best_model.predict(X_train))
+        wrapped_model = ProbaWrapper(best_model)
+        signature = infer_signature(X_train, wrapped_model.predict(None, X_train))
 
         mlflow.log_params(study.best_params)
         mlflow.log_metric("best_val_auc", study.best_value)
-        mlflow.sklearn.log_model(
-            best_model,
-            artifact_path="model",
+        mlflow.pyfunc.log_model(
+            "model",
+            python_model=wrapped_model,
             signature=signature,
             input_example=X_train.head(5),
         )
