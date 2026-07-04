@@ -136,6 +136,7 @@ def validate_train_scoring_schema(df: DataFrame, layer_name: str) -> None:
     ValueError
         If any expected column is missing, the DataFrame is empty, or
         only one target class is present.
+
     """
     _validate_columns_present(df, GOLD_FEATURE_COLUMNS, layer_name)
 
@@ -144,8 +145,7 @@ def validate_train_scoring_schema(df: DataFrame, layer_name: str) -> None:
         raise ValueError(f"{layer_name} validation failed. DataFrame is empty.")
 
     distinct_targets = {
-        row[TARGET_COLUMN]
-        for row in df.select(TARGET_COLUMN).distinct().collect()
+        row[TARGET_COLUMN] for row in df.select(TARGET_COLUMN).distinct().collect()
     }
     if len(distinct_targets) < 2:
         raise ValueError(
