@@ -143,7 +143,10 @@ def validate_train_scoring_schema(df: DataFrame, layer_name: str) -> None:
     if row_count == 0:
         raise ValueError(f"{layer_name} validation failed. DataFrame is empty.")
 
-    distinct_targets = {row[TARGET_COLUMN] for row in df.select(TARGET_COLUMN).distinct().collect()}
+    distinct_targets = {
+        row[TARGET_COLUMN]
+        for row in df.select(TARGET_COLUMN).distinct().collect()
+    }
     if len(distinct_targets) < 2:
         raise ValueError(
             f"{layer_name} validation failed. Only one target class present: "
