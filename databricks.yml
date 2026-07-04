@@ -3,7 +3,7 @@ bundle:
 
 variables:
   catalog:
-    default: main
+    default: databricks_pipeline_demo
   medallion_schema:
     default: medallion
   ml_schema:
