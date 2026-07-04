@@ -18,10 +18,10 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
 from src.models.registry import register_model_version, select_best_run
+from src.config.paths import MODEL_NAME
+
 
 # COMMAND ----------
-
-MODEL_NAME = "main.ml.breast_cancer_model"
 
 candidates = [
     {
