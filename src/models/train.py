@@ -85,18 +85,22 @@ def suggest_gradient_boosting_params(trial: optuna.Trial) -> dict[str, Any]:
         "learning_rate": trial.suggest_float("learning_rate", 1e-3, 0.3, log=True),
     }
 
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
 
 MODEL_REGISTRY = {
     "logistic_regression": {
         "suggest_params": suggest_logistic_regression_params,
-        "build_model": lambda params: LogisticRegression(**params),
+        "build_model": lambda params: Pipeline([
+            ("scaler", StandardScaler()),
+            ("model", LogisticRegression(**params)),
+        ]),
     },
     "gradient_boosting": {
         "suggest_params": suggest_gradient_boosting_params,
         "build_model": lambda params: GradientBoostingClassifier(**params),
     },
 }
-
 
 def make_objective(
     model_type: str,
