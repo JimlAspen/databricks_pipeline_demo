@@ -8,16 +8,15 @@ is a regular notebook task (not a Lakeflow pipeline stage) since the
 split is a one-time, stateful operation tied to a specific pipeline
 run, not a continuously materialized transformation.
 """
-
-import os
 import sys
+import os
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
 from pyspark.sql import SparkSession
 
 from src.config.features import TARGET_COLUMN
-from src.config.paths import GOLD_TABLE
+from src.config.paths import GOLD_TABLE, TRAIN_TABLE, SCORING_TABLE
 from src.data.split import split_train_scoring
 
 # COMMAND ----------
@@ -28,3 +27,10 @@ gold_df = spark.table(GOLD_TABLE)
 train_df, scoring_df = split_train_scoring(
     df=gold_df, train_fraction=0.5, seed=42, stratify_col=TARGET_COLUMN
 )
+
+# COMMAND ----------
+
+train_df.write.mode("overwrite").saveAsTable(TRAIN_TABLE)
+scoring_df.write.mode("overwrite").saveAsTable(SCORING_TABLE)
+
+print(f"Train rows: {train_df.count()}, Scoring rows: {scoring_df.count()}")
