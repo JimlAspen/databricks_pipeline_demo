@@ -37,6 +37,7 @@ def prepare_train_val_split(
     -------
     tuple[pandas.DataFrame, pandas.DataFrame, pandas.Series, pandas.Series]
         X_train, X_val, y_train, y_val.
+
     """
     X = train_pdf[FEATURE_COLUMNS]
     y = train_pdf[TARGET_COLUMN]
@@ -57,6 +58,7 @@ def suggest_logistic_regression_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
+
     """
     return {
         "C": trial.suggest_float("C", 1e-3, 10.0, log=True),
@@ -76,6 +78,7 @@ def suggest_gradient_boosting_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
+
     """
     return {
         "n_estimators": trial.suggest_int("n_estimators", 50, 200),
@@ -116,6 +119,7 @@ def make_objective(
     -------
     Callable[[optuna.Trial], float]
         An objective function suitable for optuna.Study.optimize.
+
     """
     model_spec = MODEL_REGISTRY[model_type]
 
@@ -165,6 +169,7 @@ def run_hyperparameter_search(
     optuna.Study
         The completed Optuna study, with .best_params and .best_value
         available.
+
     """
     X_train, X_val, y_train, y_val = prepare_train_val_split(
         train_pdf=train_pdf, seed=seed
