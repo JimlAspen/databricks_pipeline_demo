@@ -25,10 +25,9 @@ from sklearn.metrics import roc_auc_score
 from src.config.features import FEATURE_COLUMNS, TARGET_COLUMN
 from src.config.paths import SCORED_OUTPUT_TABLE, SCORING_TABLE
 from src.scoring.validation import validate_train_scoring_schema
+from src.config.paths import MODEL_NAME
 
 # COMMAND ----------
-
-MODEL_NAME = "main.ml.breast_cancer_model"
 
 spark = SparkSession.builder.getOrCreate()
 scoring_df = spark.table(SCORING_TABLE)
