@@ -35,4 +35,6 @@ def gold_breast_cancer_features():
         The feature-engineered breast cancer dataset.
     """
     silver_df = dlt.read("silver_breast_cancer")
-    return build_gold_features(silver_df=silver_df)
+    gold_df = build_gold_features(silver_df=silver_df)
+    validate_gold_schema(gold_df=gold_df)
+    return gold_df
