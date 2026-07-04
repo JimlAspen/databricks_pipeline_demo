@@ -6,10 +6,10 @@
 dbutils.library.restartPython()
 
 # COMMAND ----------
-"""Train Model A: Logistic Regression.
+"""Train Model A: Linear Regression.
 
 Loads the training set, validates it, runs an Optuna hyperparameter
-search over Logistic Regression, and logs all trials plus the best
+search over Linear Regression, and logs all trials plus the best
 model to MLflow. Passes the resulting run ID to downstream tasks via
 job task values.
 """
@@ -32,17 +32,16 @@ validate_train_scoring_schema(train_df, "Train set")
 train_pdf = train_df.toPandas()
 
 study, run_id = run_hyperparameter_search(
-    model_type="logistic_regression",
+    model_type="linear_regression",
     train_pdf=train_pdf,
     n_trials=15,
 )
 
-print(f"Best val_auc: {study.best_value}")
+print(f"Best val_rmse: {study.best_value}")
 print(f"Best params: {study.best_params}")
 print(f"Run ID: {run_id}")
 
 # COMMAND ----------
 
 dbutils.jobs.taskValues.set(key="run_id", value=run_id)
-dbutils.jobs.taskValues.set(key="model_type", value="logistic_regression")
-dbutils.jobs.taskValues.set(key="val_auc", value=study.best_value)
+dbutils.jobs.taskValues.set(key="model
