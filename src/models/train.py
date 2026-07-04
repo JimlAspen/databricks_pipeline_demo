@@ -10,6 +10,7 @@ from typing import Any
 import mlflow
 import optuna
 import pandas as pd
+from mlflow.models import infer_signature
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
@@ -18,7 +19,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from src.config.features import FEATURE_COLUMNS, TARGET_COLUMN
-from mlflow.models import infer_signature
 
 
 def prepare_train_val_split(
@@ -192,7 +192,7 @@ def run_hyperparameter_search(
         best_model_spec = MODEL_REGISTRY[model_type]
         best_model = best_model_spec["build_model"](study.best_params)
         best_model.fit(X_train, y_train)
-        
+
         signature = infer_signature(X_train, best_model.predict(X_train))
 
         mlflow.log_params(study.best_params)
