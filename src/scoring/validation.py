@@ -116,3 +116,36 @@ def validate_gold_schema(gold_df: DataFrame) -> None:
 
     """
     _validate_columns_present(gold_df, GOLD_FEATURE_COLUMNS, "Gold")
+
+
+def validate_train_scoring_schema(df: DataFrame, layer_name: str) -> None:
+    """Validate a train or scoring set before use in modeling.
+
+    Confirms all Gold feature columns are present, the DataFrame is
+    non-empty, and both target classes are represented.
+
+    Parameters
+    ----------
+    df : pyspark.sql.DataFrame
+        The train or scoring DataFrame to validate.
+    layer_name : str
+        The name of the layer being validated, used in error messages.
+
+    Raises
+    ------
+    ValueError
+        If any expected column is missing, the DataFrame is empty, or
+        only one target class is present.
+    """
+    _validate_columns_present(df, GOLD_FEATURE_COLUMNS, layer_name)
+
+    row_count = df.count()
+    if row_count == 0:
+        raise ValueError(f"{layer_name} validation failed. DataFrame is empty.")
+
+    distinct_targets = {row[TARGET_COLUMN] for row in df.select(TARGET_COLUMN).distinct().collect()}
+    if len(distinct_targets) < 2:
+        raise ValueError(
+            f"{layer_name} validation failed. Only one target class present: "
+            f"{distinct_targets}"
+        )
