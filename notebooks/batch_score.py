@@ -1,6 +1,6 @@
 # Databricks notebook source
 # COMMAND ----------
-%pip install mlflow --quiet
+%pip install optuna mlflow scikit-learn pandas --quiet
 
 # COMMAND ----------
 dbutils.library.restartPython()
