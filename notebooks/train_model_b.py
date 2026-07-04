@@ -6,12 +6,12 @@
 dbutils.library.restartPython()
 
 # COMMAND ----------
-"""Train Model B: Gradient Boosting.
+"""Train Model B: Gradient Boosting Regressor.
 
 Loads the training set, validates it, runs an Optuna hyperparameter
-search over Gradient Boosting, and logs all trials plus the best
-model to MLflow. Passes the resulting run ID to downstream tasks via
-job task values.
+search over Gradient Boosting Regressor, and logs all trials plus
+the best model to MLflow. Passes the resulting run ID to downstream
+tasks via job task values.
 """
 import sys
 import os
@@ -37,7 +37,7 @@ study, run_id = run_hyperparameter_search(
     n_trials=15,
 )
 
-print(f"Best val_auc: {study.best_value}")
+print(f"Best val_rmse: {study.best_value}")
 print(f"Best params: {study.best_params}")
 print(f"Run ID: {run_id}")
 
@@ -45,4 +45,4 @@ print(f"Run ID: {run_id}")
 
 dbutils.jobs.taskValues.set(key="run_id", value=run_id)
 dbutils.jobs.taskValues.set(key="model_type", value="gradient_boosting")
-dbutils.jobs.taskValues.set(key="val_auc", value=study.best_value)
+dbutils.jobs.taskValues.set(key="val_rmse", value=study.best_value)
