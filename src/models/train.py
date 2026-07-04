@@ -207,3 +207,12 @@ def run_hyperparameter_search(
         run_id = parent_run.info.run_id
 
     return study, run_id
+    
+class ProbaWrapper(mlflow.pyfunc.PythonModel):
+    """Wraps a scikit-learn classifier to output probability, not label."""
+
+    def __init__(self, sklearn_model):
+        self.sklearn_model = sklearn_model
+
+    def predict(self, context, model_input, params=None):
+        return self.sklearn_model.predict_proba(model_input)[:, 1]
