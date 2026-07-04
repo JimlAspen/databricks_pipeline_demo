@@ -1,0 +1,10 @@
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "D"]  # pyflakes, pycodestyle, isort, pydocstyle
+ignore = ["D203", "D213"]  # conflicting docstring conventions
+
+[tool.ruff.format]
+quote-style = "double"
