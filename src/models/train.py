@@ -18,6 +18,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from src.config.features import FEATURE_COLUMNS, TARGET_COLUMN
+from mlflow.models import infer_signature
 
 
 def prepare_train_val_split(
@@ -191,10 +192,17 @@ def run_hyperparameter_search(
         best_model_spec = MODEL_REGISTRY[model_type]
         best_model = best_model_spec["build_model"](study.best_params)
         best_model.fit(X_train, y_train)
+        
+        signature = infer_signature(X_train, best_model.predict(X_train))
 
         mlflow.log_params(study.best_params)
         mlflow.log_metric("best_val_auc", study.best_value)
-        mlflow.sklearn.log_model(best_model, artifact_path="model")
+        mlflow.sklearn.log_model(
+            best_model,
+            artifact_path="model",
+            signature=signature,
+            input_example=X_train.head(5),
+        )
 
         run_id = parent_run.info.run_id
 
