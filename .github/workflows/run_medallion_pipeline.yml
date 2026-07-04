@@ -7,7 +7,36 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff --break-system-packages
+
+      - name: Auto-fix with ruff
+        run: |
+          ruff check --fix .
+          ruff format .
+
+      - name: Commit fixes if any
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: auto-fix lint issues with ruff"
+          
   test:
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -18,8 +47,6 @@ jobs:
           python-version: "3.11"
       - name: Install test dependencies
         run: pip install -r requirements-dev.txt --break-system-packages
-      - name: Lint with ruff
-        run: ruff check .
       - name: Run unit tests
         run: pytest tests/ -v
 
