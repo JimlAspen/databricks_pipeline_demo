@@ -8,25 +8,23 @@ Table. The pipeline engine handles writing the table into the
 configured Unity Catalog schema; this notebook only defines the
 transformation, it never writes data directly.
 """
-
-import os
 import sys
+import os
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
 import dlt
-
 from src.scoring.validation import validate_bronze_schema, validate_silver_schema
 
 # COMMAND ----------
 
 
 @dlt.table(
-    name="silver_breast_cancer",
-    comment="Cleaned breast cancer dataset, validated and null-dropped.",
+    name="silver_diabetes",
+    comment="Cleaned diabetes dataset, validated and null-dropped.",
 )
-def silver_breast_cancer():
-    """Clean the Bronze breast cancer table into the Silver layer.
+def silver_diabetes():
+    """Clean the Bronze diabetes table into the Silver layer.
 
     Reads the Bronze table, validates its schema, and drops rows
     containing null values.
@@ -34,10 +32,9 @@ def silver_breast_cancer():
     Returns
     -------
     pyspark.sql.DataFrame
-        The cleaned breast cancer dataset with nulls removed.
-
+        The cleaned diabetes dataset with nulls removed.
     """
-    bronze_df = dlt.read("bronze_breast_cancer")
+    bronze_df = dlt.read("bronze_diabetes")
     validate_bronze_schema(bronze_df=bronze_df)
     silver_df = bronze_df.dropna()
     validate_silver_schema(silver_df=silver_df)
