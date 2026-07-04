@@ -1,7 +1,7 @@
-"""Model registry utilities
+"""Model registry utilities.
 
-compares candidates and promotes models via Unity Catalog registered 
-model aliases.
+Provides functions for comparing candidate models and promoting them
+via Unity Catalog registered model aliases.
 """
 import mlflow
 from mlflow import MlflowClient
