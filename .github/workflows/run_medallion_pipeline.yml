@@ -18,6 +18,8 @@ jobs:
           python-version: "3.11"
       - name: Install test dependencies
         run: pip install -r requirements-dev.txt --break-system-packages
+      - name: Lint with ruff
+        run: ruff check .
       - name: Run unit tests
         run: pytest tests/ -v
 
