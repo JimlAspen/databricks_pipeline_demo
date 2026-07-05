@@ -44,4 +44,6 @@ print(f"Run ID: {run_id}")
 # COMMAND ----------
 
 dbutils.jobs.taskValues.set(key="run_id", value=run_id)
-dbutils.jobs.taskValues.set(key="model
+dbutils.jobs.taskValues.set(key="model_type", value="linear_regression")
+dbutils.jobs.taskValues.set(key="val_rmse", value=study.best_value)
+
