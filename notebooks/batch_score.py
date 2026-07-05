@@ -1,6 +1,6 @@
 # Databricks notebook source
 # COMMAND ----------
-%pip install optuna mlflow scikit-learn pandas --quiet
+%pip install optuna mlflow scikit-learn pandas ngboost --quiet
 
 # COMMAND ----------
 dbutils.library.restartPython()
@@ -8,10 +8,9 @@ dbutils.library.restartPython()
 # COMMAND ----------
 """Batch scoring notebook.
 
-Validates the scoring set, scores it with both the champion and
-challenger models, writes both sets of predictions, and reports each
-model's actual test-set RMSE and R^2 for comparison against their
-validation-time ranking.
+Validates the scoring set, scores it with the champion, challenger,
+and best-calibrated models, writes all predictions, and reports each
+model's actual test-set RMSE and R^2 on genuinely held-out data.
 """
 import sys
 import os
@@ -29,12 +28,14 @@ from src.scoring.validation import validate_train_scoring_schema
 
 # COMMAND ----------
 
+ALIASES = ["champion", "challenger", "best_calibrated"]
+
 spark = SparkSession.builder.getOrCreate()
 scoring_df = spark.table(SCORING_TABLE)
 validate_train_scoring_schema(scoring_df, "Scoring set")
 
 scored_df = scoring_df
-for alias in ["champion", "challenger"]:
+for alias in ALIASES:
     model_uri = f"models:/{MODEL_NAME}@{alias}"
     predict = mlflow.pyfunc.spark_udf(spark, model_uri=model_uri, result_type="double")
     scored_df = scored_df.withColumn(f"prediction_{alias}", predict(*FEATURE_COLUMNS))
@@ -45,10 +46,10 @@ print(f"Scored {scored_df.count()} rows, written to {SCORED_OUTPUT_TABLE}")
 # COMMAND ----------
 
 scored_pdf = scored_df.select(
-    TARGET_COLUMN, "prediction_champion", "prediction_challenger"
+    TARGET_COLUMN, *[f"prediction_{alias}" for alias in ALIASES]
 ).toPandas()
 
-for alias in ["champion", "challenger"]:
+for alias in ALIASES:
     test_rmse = np.sqrt(
         mean_squared_error(scored_pdf[TARGET_COLUMN], scored_pdf[f"prediction_{alias}"])
     )
