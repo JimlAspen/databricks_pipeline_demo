@@ -8,6 +8,7 @@ from src.scoring.validation import (
     validate_bronze_schema,
     validate_gold_schema,
     validate_silver_schema,
+    validate_train_scoring_schema,
 )
 
 
@@ -58,3 +59,61 @@ def test_validate_gold_schema_passes_with_all_columns(spark, monkeypatch):
     )
     df = spark.createDataFrame([(1.0, 0, 1)], ["feature_1", "target", "id"])
     validate_gold_schema(gold_df=df)  # should not raise
+
+
+def test_validate_train_scoring_schema_passes_with_valid_data(spark, monkeypatch):
+    """Should not raise when data is non-empty with a varying target."""
+    monkeypatch.setattr(
+        "src.scoring.validation.GOLD_FEATURE_COLUMNS",
+        ["feature_1", "target", "id"],
+    )
+    monkeypatch.setattr("src.scoring.validation.TARGET_COLUMN", "target")
+    df = spark.createDataFrame(
+        [(1.0, 10.0, 1), (2.0, 20.0, 2), (3.0, 30.0, 3)],
+        ["feature_1", "target", "id"],
+    )
+    validate_train_scoring_schema(df, "Train set")  # should not raise
+
+
+def test_validate_train_scoring_schema_raises_on_empty_dataframe(spark, monkeypatch):
+    """Should raise ValueError when the DataFrame has no rows."""
+    monkeypatch.setattr(
+        "src.scoring.validation.GOLD_FEATURE_COLUMNS",
+        ["feature_1", "target", "id"],
+    )
+    monkeypatch.setattr("src.scoring.validation.TARGET_COLUMN", "target")
+    df = spark.createDataFrame([], "feature_1 double, target double, id int")
+    with pytest.raises(ValueError, match="empty"):
+        validate_train_scoring_schema(df, "Train set")
+
+
+def test_validate_train_scoring_schema_raises_on_null_target(spark, monkeypatch):
+    """Should raise ValueError when the target column has nulls."""
+    monkeypatch.setattr(
+        "src.scoring.validation.GOLD_FEATURE_COLUMNS",
+        ["feature_1", "target", "id"],
+    )
+    monkeypatch.setattr("src.scoring.validation.TARGET_COLUMN", "target")
+    df = spark.createDataFrame(
+        [(1.0, 10.0, 1), (2.0, None, 2)],
+        ["feature_1", "target", "id"],
+    )
+    with pytest.raises(ValueError, match="null"):
+        validate_train_scoring_schema(df, "Train set")
+
+
+def test_validate_train_scoring_schema_raises_on_zero_variance_target(
+    spark, monkeypatch
+):
+    """Should raise ValueError when the target has no variance."""
+    monkeypatch.setattr(
+        "src.scoring.validation.GOLD_FEATURE_COLUMNS",
+        ["feature_1", "target", "id"],
+    )
+    monkeypatch.setattr("src.scoring.validation.TARGET_COLUMN", "target")
+    df = spark.createDataFrame(
+        [(1.0, 10.0, 1), (2.0, 10.0, 2), (3.0, 10.0, 3)],
+        ["feature_1", "target", "id"],
+    )
+    with pytest.raises(ValueError, match="zero"):
+        validate_train_scoring_schema(df, "Train set")
