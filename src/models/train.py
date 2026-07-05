@@ -5,6 +5,7 @@ used by four candidate model notebooks: Linear Regression and
 Gradient Boosting Regressor (point estimate), plus NGBoost and
 Bayesian Ridge (distributional).
 """
+
 from typing import Any
 
 import mlflow
@@ -42,6 +43,7 @@ class IdentityWrapper(mlflow.pyfunc.PythonModel):
         ----------
         model
             A fitted regressor exposing predict.
+
         """
         self.model = model
 
@@ -61,6 +63,7 @@ class IdentityWrapper(mlflow.pyfunc.PythonModel):
         -------
         numpy.ndarray
             Predicted disease progression score per row.
+
         """
         return self.model.predict(model_input)
 
@@ -85,6 +88,7 @@ def prepare_train_val_split(
     -------
     tuple[pandas.DataFrame, pandas.DataFrame, pandas.Series, pandas.Series]
         X_train, X_val, y_train, y_val.
+
     """
     X = train_pdf[FEATURE_COLUMNS]
     y = train_pdf[TARGET_COLUMN]
@@ -103,6 +107,7 @@ def suggest_linear_regression_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
+
     """
     return {
         "fit_intercept": trial.suggest_categorical("fit_intercept", [True, False]),
@@ -122,6 +127,7 @@ def suggest_gradient_boosting_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
+
     """
     return {
         "n_estimators": trial.suggest_int("n_estimators", 50, 200),
@@ -142,6 +148,7 @@ def suggest_ngboost_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
+
     """
     return {
         "n_estimators": trial.suggest_int("n_estimators", 100, 400),
@@ -163,6 +170,7 @@ def suggest_bayesian_ridge_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
+
     """
     return {
         "alpha_1": trial.suggest_float("alpha_1", 1e-7, 1e-4, log=True),
@@ -187,6 +195,7 @@ def build_ngboost_model(params: dict[str, Any]) -> NGBRegressor:
     NGBRegressor
         An unfitted NGBoost regressor with a Normal output
         distribution.
+
     """
     base_max_depth = params.pop("base_max_depth")
     return NGBRegressor(
@@ -235,6 +244,7 @@ def compute_rmse(y_true, y_pred) -> float:
     -------
     float
         The root mean squared error.
+
     """
     return float(np.sqrt(mean_squared_error(y_true, y_pred)))
 
@@ -260,6 +270,7 @@ def compute_val_nll(
     float
         Mean negative log-likelihood of the true values under the
         model's predicted distribution, lower is better.
+
     """
     y_true = y_val.to_numpy()
 
@@ -300,6 +311,7 @@ def make_objective(
     Callable[[optuna.Trial], float]
         An objective function suitable for optuna.Study.optimize.
         Returns validation RMSE; Optuna direction should be minimize.
+
     """
     model_spec = MODEL_REGISTRY[model_type]
 
@@ -355,6 +367,7 @@ def run_hyperparameter_search(
     tuple[optuna.Study, str]
         The completed Optuna study (with .best_params and .best_value
         as validation RMSE), and the MLflow run ID of the parent run.
+
     """
     X_train, X_val, y_train, y_val = prepare_train_val_split(
         train_pdf=train_pdf, seed=seed
