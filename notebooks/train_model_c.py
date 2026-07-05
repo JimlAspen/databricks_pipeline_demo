@@ -1,6 +1,6 @@
 # Databricks notebook source
 # COMMAND ----------
-%pip install optuna mlflow scikit-learn pandas ngboost --quiet
+%pip install ngboost optuna mlflow scikit-learn pandas ngboost --quiet
 
 # COMMAND ----------
 dbutils.library.restartPython()
