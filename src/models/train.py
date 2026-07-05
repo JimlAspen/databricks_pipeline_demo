@@ -1,10 +1,10 @@
 """Training utilities for the diabetes progression regression models.
 
 Provides a shared Optuna + MLflow hyperparameter search interface
-used by all candidate model notebooks: Linear Regression, Gradient
-Boosting Regressor (point estimate), and NGBoost (distributional).
+used by four candidate model notebooks: Linear Regression and
+Gradient Boosting Regressor (point estimate), plus NGBoost and
+Bayesian Ridge (distributional).
 """
-
 from typing import Any
 
 import mlflow
@@ -14,25 +14,25 @@ import pandas as pd
 from mlflow.models import infer_signature
 from ngboost import NGBRegressor
 from ngboost.distns import Normal
+from scipy.stats import norm
 from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import BayesianRidge, LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeRegressor
-from scipy.stats import norm
-from sklearn.linear_model import BayesianRidge
 
 from src.config.features import FEATURE_COLUMNS, TARGET_COLUMN
+
+DISTRIBUTIONAL_MODELS = {"ngboost", "bayesian_ridge"}
 
 
 class IdentityWrapper(mlflow.pyfunc.PythonModel):
     """Wraps a regressor for consistent pyfunc logging.
 
-    All candidate models (including NGBoost) expose predict()
-    returning a point estimate, so this wrapper is a thin
-    pass-through, kept for interface consistency with the scoring
-    pipeline, which expects all registered models to be pyfunc
-    models.
+    All candidate models expose predict() returning a point estimate,
+    so this wrapper is a thin pass-through, kept for interface
+    consistency with the scoring pipeline, which expects all
+    registered models to be pyfunc models.
     """
 
     def __init__(self, model):
@@ -42,7 +42,6 @@ class IdentityWrapper(mlflow.pyfunc.PythonModel):
         ----------
         model
             A fitted regressor exposing predict.
-
         """
         self.model = model
 
@@ -62,7 +61,6 @@ class IdentityWrapper(mlflow.pyfunc.PythonModel):
         -------
         numpy.ndarray
             Predicted disease progression score per row.
-
         """
         return self.model.predict(model_input)
 
@@ -87,7 +85,6 @@ def prepare_train_val_split(
     -------
     tuple[pandas.DataFrame, pandas.DataFrame, pandas.Series, pandas.Series]
         X_train, X_val, y_train, y_val.
-
     """
     X = train_pdf[FEATURE_COLUMNS]
     y = train_pdf[TARGET_COLUMN]
@@ -106,7 +103,6 @@ def suggest_linear_regression_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
-
     """
     return {
         "fit_intercept": trial.suggest_categorical("fit_intercept", [True, False]),
@@ -126,7 +122,6 @@ def suggest_gradient_boosting_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
-
     """
     return {
         "n_estimators": trial.suggest_int("n_estimators", 50, 200),
@@ -147,7 +142,6 @@ def suggest_ngboost_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
-
     """
     return {
         "n_estimators": trial.suggest_int("n_estimators", 100, 400),
@@ -155,6 +149,7 @@ def suggest_ngboost_params(trial: optuna.Trial) -> dict[str, Any]:
         "minibatch_frac": trial.suggest_float("minibatch_frac", 0.5, 1.0),
         "base_max_depth": trial.suggest_int("base_max_depth", 2, 4),
     }
+
 
 def suggest_bayesian_ridge_params(trial: optuna.Trial) -> dict[str, Any]:
     """Suggest a hyperparameter set for Bayesian Ridge.
@@ -175,7 +170,7 @@ def suggest_bayesian_ridge_params(trial: optuna.Trial) -> dict[str, Any]:
         "lambda_1": trial.suggest_float("lambda_1", 1e-7, 1e-4, log=True),
         "lambda_2": trial.suggest_float("lambda_2", 1e-7, 1e-4, log=True),
     }
-    
+
 
 def build_ngboost_model(params: dict[str, Any]) -> NGBRegressor:
     """Build an NGBRegressor from suggested hyperparameters.
@@ -192,7 +187,6 @@ def build_ngboost_model(params: dict[str, Any]) -> NGBRegressor:
     NGBRegressor
         An unfitted NGBoost regressor with a Normal output
         distribution.
-
     """
     base_max_depth = params.pop("base_max_depth")
     return NGBRegressor(
@@ -222,9 +216,6 @@ MODEL_REGISTRY = {
     },
 }
 
-DISTRIBUTIONAL_MODELS = {"ngboost", "bayesian_ridge"}
-
-
 
 def compute_rmse(y_true, y_pred) -> float:
     """Compute root mean squared error.
@@ -244,65 +235,13 @@ def compute_rmse(y_true, y_pred) -> float:
     -------
     float
         The root mean squared error.
-
     """
     return float(np.sqrt(mean_squared_error(y_true, y_pred)))
 
 
-def make_objective(
-    model_type: str,
-    X_train: pd.DataFrame,
-    X_val: pd.DataFrame,
-    y_train: pd.Series,
-    y_val: pd.Series,
-):
-    """Build an Optuna objective function for the given model type.
-
-    All model types are compared on validation RMSE for a fair,
-    common ranking metric. NGBoost additionally logs validation NLL
-    per trial, since that is the metric that reflects calibration
-    quality rather than point-estimate accuracy.
-
-    Parameters
-    ----------
-    model_type : str
-        One of the keys in MODEL_REGISTRY.
-    X_train, X_val, y_train, y_val
-        Train/validation splits produced by prepare_train_val_split.
-
-    Returns
-    -------
-    Callable[[optuna.Trial], float]
-        An objective function suitable for optuna.Study.optimize.
-        Returns validation RMSE; Optuna direction should be minimize.
-
-    """
-    model_spec = MODEL_REGISTRY[model_type]
-
-        def objective(trial: optuna.Trial) -> float:
-        params = model_spec["suggest_params"](trial)
-
-        with mlflow.start_run(nested=True):
-            model = model_spec["build_model"](dict(params))
-            model.fit(X_train, y_train)
-
-            val_preds = model.predict(X_val)
-            val_rmse = compute_rmse(y_val, val_preds)
-            val_r2 = r2_score(y_val, val_preds)
-
-            mlflow.log_params(params)
-            mlflow.log_metric("val_rmse", val_rmse)
-            mlflow.log_metric("val_r2", val_r2)
-
-            if model_type in DISTRIBUTIONAL_MODELS:
-                val_nll = compute_val_nll(model_type, model, X_val, y_val)
-                mlflow.log_metric("val_nll", val_nll)
-
-        return val_rmse
-
-    return objective
-    
-def compute_val_nll(model_type: str, model, X_val: pd.DataFrame, y_val: pd.Series) -> float:
+def compute_val_nll(
+    model_type: str, model, X_val: pd.DataFrame, y_val: pd.Series
+) -> float:
     """Compute validation negative log-likelihood for a distributional model.
 
     Parameters
@@ -335,6 +274,59 @@ def compute_val_nll(model_type: str, model, X_val: pd.DataFrame, y_val: pd.Serie
     raise ValueError(f"No NLL computation defined for model_type={model_type!r}")
 
 
+def make_objective(
+    model_type: str,
+    X_train: pd.DataFrame,
+    X_val: pd.DataFrame,
+    y_train: pd.Series,
+    y_val: pd.Series,
+):
+    """Build an Optuna objective function for the given model type.
+
+    All model types are compared on validation RMSE for a fair,
+    common ranking metric. Distributional models additionally log
+    validation NLL per trial, since that metric reflects calibration
+    quality rather than point-estimate accuracy.
+
+    Parameters
+    ----------
+    model_type : str
+        One of the keys in MODEL_REGISTRY.
+    X_train, X_val, y_train, y_val
+        Train/validation splits produced by prepare_train_val_split.
+
+    Returns
+    -------
+    Callable[[optuna.Trial], float]
+        An objective function suitable for optuna.Study.optimize.
+        Returns validation RMSE; Optuna direction should be minimize.
+    """
+    model_spec = MODEL_REGISTRY[model_type]
+
+    def objective(trial: optuna.Trial) -> float:
+        params = model_spec["suggest_params"](trial)
+
+        with mlflow.start_run(nested=True):
+            model = model_spec["build_model"](dict(params))
+            model.fit(X_train, y_train)
+
+            val_preds = model.predict(X_val)
+            val_rmse = compute_rmse(y_val, val_preds)
+            val_r2 = r2_score(y_val, val_preds)
+
+            mlflow.log_params(params)
+            mlflow.log_metric("val_rmse", val_rmse)
+            mlflow.log_metric("val_r2", val_r2)
+
+            if model_type in DISTRIBUTIONAL_MODELS:
+                val_nll = compute_val_nll(model_type, model, X_val, y_val)
+                mlflow.log_metric("val_nll", val_nll)
+
+        return val_rmse
+
+    return objective
+
+
 def run_hyperparameter_search(
     model_type: str,
     train_pdf: pd.DataFrame,
@@ -363,13 +355,14 @@ def run_hyperparameter_search(
     tuple[optuna.Study, str]
         The completed Optuna study (with .best_params and .best_value
         as validation RMSE), and the MLflow run ID of the parent run.
-
     """
     X_train, X_val, y_train, y_val = prepare_train_val_split(
         train_pdf=train_pdf, seed=seed
     )
 
-        mlflow.sklearn.autolog(log_models=False, disable=(model_type in DISTRIBUTIONAL_MODELS))
+    mlflow.sklearn.autolog(
+        log_models=False, disable=(model_type in DISTRIBUTIONAL_MODELS)
+    )
 
     with mlflow.start_run(run_name=f"{model_type}_hyperparam_search") as parent_run:
         study = optuna.create_study(direction="minimize")
@@ -393,7 +386,6 @@ def run_hyperparameter_search(
         if model_type in DISTRIBUTIONAL_MODELS:
             best_val_nll = compute_val_nll(model_type, best_model, X_val, y_val)
             mlflow.log_metric("best_val_nll", best_val_nll)
-
 
         mlflow.pyfunc.log_model(
             "model",
