@@ -19,6 +19,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeRegressor
+from scipy.stats import norm
+from sklearn.linear_model import BayesianRidge
 
 from src.config.features import FEATURE_COLUMNS, TARGET_COLUMN
 
@@ -154,6 +156,26 @@ def suggest_ngboost_params(trial: optuna.Trial) -> dict[str, Any]:
         "base_max_depth": trial.suggest_int("base_max_depth", 2, 4),
     }
 
+def suggest_bayesian_ridge_params(trial: optuna.Trial) -> dict[str, Any]:
+    """Suggest a hyperparameter set for Bayesian Ridge.
+
+    Parameters
+    ----------
+    trial : optuna.Trial
+        The current Optuna trial.
+
+    Returns
+    -------
+    dict[str, Any]
+        Hyperparameters to build the model with.
+    """
+    return {
+        "alpha_1": trial.suggest_float("alpha_1", 1e-7, 1e-4, log=True),
+        "alpha_2": trial.suggest_float("alpha_2", 1e-7, 1e-4, log=True),
+        "lambda_1": trial.suggest_float("lambda_1", 1e-7, 1e-4, log=True),
+        "lambda_2": trial.suggest_float("lambda_2", 1e-7, 1e-4, log=True),
+    }
+    
 
 def build_ngboost_model(params: dict[str, Any]) -> NGBRegressor:
     """Build an NGBRegressor from suggested hyperparameters.
@@ -194,7 +216,14 @@ MODEL_REGISTRY = {
         "suggest_params": suggest_ngboost_params,
         "build_model": build_ngboost_model,
     },
+    "bayesian_ridge": {
+        "suggest_params": suggest_bayesian_ridge_params,
+        "build_model": lambda params: BayesianRidge(**params),
+    },
 }
+
+DISTRIBUTIONAL_MODELS = {"ngboost", "bayesian_ridge"}
+
 
 
 def compute_rmse(y_true, y_pred) -> float:
@@ -250,7 +279,7 @@ def make_objective(
     """
     model_spec = MODEL_REGISTRY[model_type]
 
-    def objective(trial: optuna.Trial) -> float:
+        def objective(trial: optuna.Trial) -> float:
         params = model_spec["suggest_params"](trial)
 
         with mlflow.start_run(nested=True):
@@ -265,14 +294,45 @@ def make_objective(
             mlflow.log_metric("val_rmse", val_rmse)
             mlflow.log_metric("val_r2", val_r2)
 
-            if model_type == "ngboost":
-                val_dist = model.pred_dist(X_val)
-                val_nll = float(-val_dist.logpdf(y_val.to_numpy()).mean())
+            if model_type in DISTRIBUTIONAL_MODELS:
+                val_nll = compute_val_nll(model_type, model, X_val, y_val)
                 mlflow.log_metric("val_nll", val_nll)
 
         return val_rmse
 
     return objective
+    
+def compute_val_nll(model_type: str, model, X_val: pd.DataFrame, y_val: pd.Series) -> float:
+    """Compute validation negative log-likelihood for a distributional model.
+
+    Parameters
+    ----------
+    model_type : str
+        One of the keys in DISTRIBUTIONAL_MODELS.
+    model
+        The fitted distributional model.
+    X_val : pandas.DataFrame
+        Validation features.
+    y_val : pandas.Series
+        Validation targets.
+
+    Returns
+    -------
+    float
+        Mean negative log-likelihood of the true values under the
+        model's predicted distribution, lower is better.
+    """
+    y_true = y_val.to_numpy()
+
+    if model_type == "ngboost":
+        val_dist = model.pred_dist(X_val)
+        return float(-val_dist.logpdf(y_true).mean())
+
+    if model_type == "bayesian_ridge":
+        means, stds = model.predict(X_val, return_std=True)
+        return float(-norm.logpdf(y_true, loc=means, scale=stds).mean())
+
+    raise ValueError(f"No NLL computation defined for model_type={model_type!r}")
 
 
 def run_hyperparameter_search(
@@ -309,7 +369,7 @@ def run_hyperparameter_search(
         train_pdf=train_pdf, seed=seed
     )
 
-    mlflow.sklearn.autolog(log_models=False, disable=(model_type == "ngboost"))
+        mlflow.sklearn.autolog(log_models=False, disable=(model_type in DISTRIBUTIONAL_MODELS))
 
     with mlflow.start_run(run_name=f"{model_type}_hyperparam_search") as parent_run:
         study = optuna.create_study(direction="minimize")
@@ -330,10 +390,10 @@ def run_hyperparameter_search(
         mlflow.log_metric("best_val_rmse", study.best_value)
         mlflow.log_metric("best_val_r2", best_val_r2)
 
-        if model_type == "ngboost":
-            best_val_dist = best_model.pred_dist(X_val)
-            best_val_nll = float(-best_val_dist.logpdf(y_val.to_numpy()).mean())
+        if model_type in DISTRIBUTIONAL_MODELS:
+            best_val_nll = compute_val_nll(model_type, best_model, X_val, y_val)
             mlflow.log_metric("best_val_nll", best_val_nll)
+
 
         mlflow.pyfunc.log_model(
             "model",
