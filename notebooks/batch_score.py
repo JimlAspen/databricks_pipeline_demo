@@ -19,6 +19,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..")))
 
 import mlflow
+import numpy as np
 from pyspark.sql import SparkSession
 from sklearn.metrics import mean_squared_error, r2_score
 
@@ -48,8 +49,8 @@ scored_pdf = scored_df.select(
 ).toPandas()
 
 for alias in ["champion", "challenger"]:
-    test_rmse = mean_squared_error(
-        scored_pdf[TARGET_COLUMN], scored_pdf[f"prediction_{alias}"], squared=False
+    test_rmse = np.sqrt(
+        mean_squared_error(scored_pdf[TARGET_COLUMN], scored_pdf[f"prediction_{alias}"])
     )
     test_r2 = r2_score(scored_pdf[TARGET_COLUMN], scored_pdf[f"prediction_{alias}"])
     print(f"{alias} test RMSE on held-out scoring set: {test_rmse:.2f}")
