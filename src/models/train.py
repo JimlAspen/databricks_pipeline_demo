@@ -4,10 +4,10 @@ Provides a shared Optuna + MLflow hyperparameter search interface
 used by both candidate model notebooks (Linear Regression and
 Gradient Boosting Regressor).
 """
-
 from typing import Any
 
 import mlflow
+import numpy as np
 import optuna
 import pandas as pd
 from mlflow.models import infer_signature
@@ -22,11 +22,10 @@ from src.config.features import FEATURE_COLUMNS, TARGET_COLUMN
 class IdentityWrapper(mlflow.pyfunc.PythonModel):
     """Wraps a scikit-learn regressor for consistent pyfunc logging.
 
-    Unlike the classification case, regressors already output the
-    quantity of interest directly via predict(), so this wrapper is a
-    thin pass-through — kept for interface consistency with the
-    scoring pipeline, which expects all registered models to be
-    pyfunc models.
+    Regressors already output the quantity of interest directly via
+    predict(), so this wrapper is a thin pass-through, kept for
+    interface consistency with the scoring pipeline, which expects
+    all registered models to be pyfunc models.
     """
 
     def __init__(self, sklearn_model):
@@ -36,7 +35,6 @@ class IdentityWrapper(mlflow.pyfunc.PythonModel):
         ----------
         sklearn_model
             A fitted scikit-learn regressor exposing predict.
-
         """
         self.sklearn_model = sklearn_model
 
@@ -56,7 +54,6 @@ class IdentityWrapper(mlflow.pyfunc.PythonModel):
         -------
         numpy.ndarray
             Predicted disease progression score per row.
-
         """
         return self.sklearn_model.predict(model_input)
 
@@ -81,7 +78,6 @@ def prepare_train_val_split(
     -------
     tuple[pandas.DataFrame, pandas.DataFrame, pandas.Series, pandas.Series]
         X_train, X_val, y_train, y_val.
-
     """
     X = train_pdf[FEATURE_COLUMNS]
     y = train_pdf[TARGET_COLUMN]
@@ -100,7 +96,6 @@ def suggest_linear_regression_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
-
     """
     return {
         "fit_intercept": trial.suggest_categorical("fit_intercept", [True, False]),
@@ -120,7 +115,6 @@ def suggest_gradient_boosting_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
-
     """
     return {
         "n_estimators": trial.suggest_int("n_estimators", 50, 200),
@@ -139,6 +133,28 @@ MODEL_REGISTRY = {
         "build_model": lambda params: GradientBoostingRegressor(**params),
     },
 }
+
+
+def compute_rmse(y_true, y_pred) -> float:
+    """Compute root mean squared error.
+
+    Implemented via sqrt(mean_squared_error(...)) rather than relying
+    on a squared= keyword argument, since that argument was removed
+    in newer scikit-learn versions.
+
+    Parameters
+    ----------
+    y_true
+        Ground truth target values.
+    y_pred
+        Predicted target values.
+
+    Returns
+    -------
+    float
+        The root mean squared error.
+    """
+    return float(np.sqrt(mean_squared_error(y_true, y_pred)))
 
 
 def make_objective(
@@ -162,7 +178,6 @@ def make_objective(
     Callable[[optuna.Trial], float]
         An objective function suitable for optuna.Study.optimize.
         Returns validation RMSE; Optuna direction should be minimize.
-
     """
     model_spec = MODEL_REGISTRY[model_type]
 
@@ -174,7 +189,7 @@ def make_objective(
             model.fit(X_train, y_train)
 
             val_preds = model.predict(X_val)
-            val_rmse = mean_squared_error(y_val, val_preds, squared=False)
+            val_rmse = compute_rmse(y_val, val_preds)
             val_r2 = r2_score(y_val, val_preds)
 
             mlflow.log_params(params)
@@ -214,7 +229,6 @@ def run_hyperparameter_search(
     tuple[optuna.Study, str]
         The completed Optuna study (with .best_params and .best_value
         as validation RMSE), and the MLflow run ID of the parent run.
-
     """
     X_train, X_val, y_train, y_val = prepare_train_val_split(
         train_pdf=train_pdf, seed=seed
