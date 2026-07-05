@@ -5,7 +5,6 @@ used by four candidate model notebooks: Linear Regression and
 Gradient Boosting Regressor (point estimate), plus NGBoost and
 Bayesian Ridge (distributional).
 """
-
 from typing import Any
 
 import mlflow
@@ -20,6 +19,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import BayesianRidge, LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeRegressor
 
 from src.config.features import FEATURE_COLUMNS, TARGET_COLUMN
@@ -27,35 +27,36 @@ from src.config.features import FEATURE_COLUMNS, TARGET_COLUMN
 DISTRIBUTIONAL_MODELS = {"ngboost", "bayesian_ridge"}
 
 
-class IdentityWrapper(mlflow.pyfunc.PythonModel):
-    """Wraps a regressor for consistent pyfunc logging.
+class ScaledModelWrapper(mlflow.pyfunc.PythonModel):
+    """Wraps a fitted model together with its fitted scaler.
 
-    All candidate models expose predict() returning a point estimate,
-    so this wrapper is a thin pass-through, kept for interface
-    consistency with the scoring pipeline, which expects all
-    registered models to be pyfunc models.
+    Ensures inference-time inputs are scaled identically to how the
+    model was trained, so batch scoring on raw features produces
+    correct results without callers needing to scale manually.
     """
 
-    def __init__(self, model):
-        """Store the underlying fitted model.
+    def __init__(self, model, scaler: StandardScaler):
+        """Store the underlying fitted model and its fitted scaler.
 
         Parameters
         ----------
         model
             A fitted regressor exposing predict.
-
+        scaler : sklearn.preprocessing.StandardScaler
+            The scaler fitted on the same training data as model.
         """
         self.model = model
+        self.scaler = scaler
 
     def predict(self, context, model_input, params=None):
-        """Return the point prediction for each input row.
+        """Scale the input, then return the model's point prediction.
 
         Parameters
         ----------
         context
             MLflow pyfunc context, unused here.
         model_input
-            Input features to score.
+            Raw (unscaled) input features to score.
         params
             Optional inference parameters, unused here.
 
@@ -63,9 +64,9 @@ class IdentityWrapper(mlflow.pyfunc.PythonModel):
         -------
         numpy.ndarray
             Predicted disease progression score per row.
-
         """
-        return self.model.predict(model_input)
+        scaled_input = self.scaler.transform(model_input)
+        return self.model.predict(scaled_input)
 
 
 def prepare_train_val_split(
@@ -87,8 +88,8 @@ def prepare_train_val_split(
     Returns
     -------
     tuple[pandas.DataFrame, pandas.DataFrame, pandas.Series, pandas.Series]
-        X_train, X_val, y_train, y_val.
-
+        X_train, X_val, y_train, y_val, all with raw (unscaled)
+        feature values.
     """
     X = train_pdf[FEATURE_COLUMNS]
     y = train_pdf[TARGET_COLUMN]
@@ -107,7 +108,6 @@ def suggest_linear_regression_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
-
     """
     return {
         "fit_intercept": trial.suggest_categorical("fit_intercept", [True, False]),
@@ -127,7 +127,6 @@ def suggest_gradient_boosting_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
-
     """
     return {
         "n_estimators": trial.suggest_int("n_estimators", 50, 200),
@@ -148,7 +147,6 @@ def suggest_ngboost_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
-
     """
     return {
         "n_estimators": trial.suggest_int("n_estimators", 100, 400),
@@ -170,7 +168,6 @@ def suggest_bayesian_ridge_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
-
     """
     return {
         "alpha_1": trial.suggest_float("alpha_1", 1e-7, 1e-4, log=True),
@@ -195,7 +192,6 @@ def build_ngboost_model(params: dict[str, Any]) -> NGBRegressor:
     NGBRegressor
         An unfitted NGBoost regressor with a Normal output
         distribution.
-
     """
     base_max_depth = params.pop("base_max_depth")
     return NGBRegressor(
@@ -244,14 +240,11 @@ def compute_rmse(y_true, y_pred) -> float:
     -------
     float
         The root mean squared error.
-
     """
     return float(np.sqrt(mean_squared_error(y_true, y_pred)))
 
 
-def compute_val_nll(
-    model_type: str, model, X_val: pd.DataFrame, y_val: pd.Series
-) -> float:
+def compute_val_nll(model_type: str, model, X_val_scaled, y_val: pd.Series) -> float:
     """Compute validation negative log-likelihood for a distributional model.
 
     Parameters
@@ -260,8 +253,8 @@ def compute_val_nll(
         One of the keys in DISTRIBUTIONAL_MODELS.
     model
         The fitted distributional model.
-    X_val : pandas.DataFrame
-        Validation features.
+    X_val_scaled
+        Validation features, already scaled consistently with training.
     y_val : pandas.Series
         Validation targets.
 
@@ -270,16 +263,15 @@ def compute_val_nll(
     float
         Mean negative log-likelihood of the true values under the
         model's predicted distribution, lower is better.
-
     """
     y_true = y_val.to_numpy()
 
     if model_type == "ngboost":
-        val_dist = model.pred_dist(X_val)
+        val_dist = model.pred_dist(X_val_scaled)
         return float(-val_dist.logpdf(y_true).mean())
 
     if model_type == "bayesian_ridge":
-        means, stds = model.predict(X_val, return_std=True)
+        means, stds = model.predict(X_val_scaled, return_std=True)
         return float(-norm.logpdf(y_true, loc=means, scale=stds).mean())
 
     raise ValueError(f"No NLL computation defined for model_type={model_type!r}")
@@ -294,24 +286,25 @@ def make_objective(
 ):
     """Build an Optuna objective function for the given model type.
 
-    All model types are compared on validation RMSE for a fair,
-    common ranking metric. Distributional models additionally log
-    validation NLL per trial, since that metric reflects calibration
-    quality rather than point-estimate accuracy.
+    Fits a StandardScaler on X_train only (never on X_val), so the
+    hyperparameter search never leaks validation-set statistics into
+    feature scaling. All model types are compared on validation RMSE
+    for a fair, common ranking metric. Distributional models
+    additionally log validation NLL per trial.
 
     Parameters
     ----------
     model_type : str
         One of the keys in MODEL_REGISTRY.
     X_train, X_val, y_train, y_val
-        Train/validation splits produced by prepare_train_val_split.
+        Train/validation splits produced by prepare_train_val_split,
+        with raw (unscaled) feature values.
 
     Returns
     -------
     Callable[[optuna.Trial], float]
         An objective function suitable for optuna.Study.optimize.
         Returns validation RMSE; Optuna direction should be minimize.
-
     """
     model_spec = MODEL_REGISTRY[model_type]
 
@@ -319,10 +312,14 @@ def make_objective(
         params = model_spec["suggest_params"](trial)
 
         with mlflow.start_run(nested=True):
-            model = model_spec["build_model"](dict(params))
-            model.fit(X_train, y_train)
+            scaler = StandardScaler().fit(X_train)
+            X_train_scaled = scaler.transform(X_train)
+            X_val_scaled = scaler.transform(X_val)
 
-            val_preds = model.predict(X_val)
+            model = model_spec["build_model"](dict(params))
+            model.fit(X_train_scaled, y_train)
+
+            val_preds = model.predict(X_val_scaled)
             val_rmse = compute_rmse(y_val, val_preds)
             val_r2 = r2_score(y_val, val_preds)
 
@@ -331,7 +328,7 @@ def make_objective(
             mlflow.log_metric("val_r2", val_r2)
 
             if model_type in DISTRIBUTIONAL_MODELS:
-                val_nll = compute_val_nll(model_type, model, X_val, y_val)
+                val_nll = compute_val_nll(model_type, model, X_val_scaled, y_val)
                 mlflow.log_metric("val_nll", val_nll)
 
         return val_rmse
@@ -348,8 +345,13 @@ def run_hyperparameter_search(
     """Run an Optuna hyperparameter search for the given model type.
 
     Logs a parent MLflow run containing all trials as nested child
-    runs, and the best model refit on the full training set as the
-    parent run's own logged model.
+    runs. After hyperparameter search, refits the winning
+    configuration on the full training set (train + validation
+    combined), since the validation split's only purpose was to
+    guide hyperparameter selection; the final deployed model should
+    use every available row. Validation-set metrics are still
+    reported afterward for reference, using the same held-out slice
+    that selected the hyperparameters.
 
     Parameters
     ----------
@@ -367,7 +369,6 @@ def run_hyperparameter_search(
     tuple[optuna.Study, str]
         The completed Optuna study (with .best_params and .best_value
         as validation RMSE), and the MLflow run ID of the parent run.
-
     """
     X_train, X_val, y_train, y_val = prepare_train_val_split(
         train_pdf=train_pdf, seed=seed
@@ -382,29 +383,38 @@ def run_hyperparameter_search(
         objective = make_objective(model_type, X_train, X_val, y_train, y_val)
         study.optimize(objective, n_trials=n_trials)
 
+        X_full = train_pdf[FEATURE_COLUMNS]
+        y_full = train_pdf[TARGET_COLUMN]
+
+        final_scaler = StandardScaler().fit(X_full)
+        X_full_scaled = final_scaler.transform(X_full)
+        X_val_scaled_final = final_scaler.transform(X_val)
+
         best_model_spec = MODEL_REGISTRY[model_type]
         best_model = best_model_spec["build_model"](dict(study.best_params))
-        best_model.fit(X_train, y_train)
+        best_model.fit(X_full_scaled, y_full)
 
-        best_val_preds = best_model.predict(X_val)
+        best_val_preds = best_model.predict(X_val_scaled_final)
         best_val_r2 = r2_score(y_val, best_val_preds)
 
-        wrapped_model = IdentityWrapper(best_model)
-        signature = infer_signature(X_train, wrapped_model.predict(None, X_train))
+        wrapped_model = ScaledModelWrapper(best_model, final_scaler)
+        signature = infer_signature(X_full, wrapped_model.predict(None, X_full))
 
         mlflow.log_params(study.best_params)
         mlflow.log_metric("best_val_rmse", study.best_value)
         mlflow.log_metric("best_val_r2", best_val_r2)
 
         if model_type in DISTRIBUTIONAL_MODELS:
-            best_val_nll = compute_val_nll(model_type, best_model, X_val, y_val)
+            best_val_nll = compute_val_nll(
+                model_type, best_model, X_val_scaled_final, y_val
+            )
             mlflow.log_metric("best_val_nll", best_val_nll)
 
         mlflow.pyfunc.log_model(
             "model",
             python_model=wrapped_model,
             signature=signature,
-            input_example=X_train.head(5),
+            input_example=X_full.head(5),
         )
 
         run_id = parent_run.info.run_id
