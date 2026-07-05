@@ -58,11 +58,25 @@ resources:
             - task_key: split_data
           notebook_task:
             notebook_path: notebooks/train_model_b.py
+        
+        - task_key: train_model_c
+          depends_on:
+            - task_key: split_data
+          notebook_task:
+            notebook_path: notebooks/train_model_c.py
+
+        - task_key: train_model_d
+          depends_on:
+            - task_key: split_data
+          notebook_task:
+            notebook_path: notebooks/train_model_d.py
 
         - task_key: select_and_register
           depends_on:
             - task_key: train_model_a
             - task_key: train_model_b
+            - task_key: train_model_c
+            - task_key: train_model_d
           notebook_task:
             notebook_path: notebooks/select_and_register.py
 
