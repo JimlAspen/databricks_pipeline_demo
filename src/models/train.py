@@ -1,10 +1,9 @@
 """Training utilities for the diabetes progression regression models.
 
 Provides a shared Optuna + MLflow hyperparameter search interface
-used by both candidate model notebooks (Linear Regression and
-Gradient Boosting Regressor).
+used by all candidate model notebooks: Linear Regression, Gradient
+Boosting Regressor (point estimate), and NGBoost (distributional).
 """
-
 from typing import Any
 
 import mlflow
@@ -12,33 +11,36 @@ import numpy as np
 import optuna
 import pandas as pd
 from mlflow.models import infer_signature
+from ngboost import NGBRegressor
+from ngboost.distns import Normal
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeRegressor
 
 from src.config.features import FEATURE_COLUMNS, TARGET_COLUMN
 
 
 class IdentityWrapper(mlflow.pyfunc.PythonModel):
-    """Wraps a scikit-learn regressor for consistent pyfunc logging.
+    """Wraps a regressor for consistent pyfunc logging.
 
-    Regressors already output the quantity of interest directly via
-    predict(), so this wrapper is a thin pass-through, kept for
-    interface consistency with the scoring pipeline, which expects
-    all registered models to be pyfunc models.
+    All candidate models (including NGBoost) expose predict()
+    returning a point estimate, so this wrapper is a thin
+    pass-through, kept for interface consistency with the scoring
+    pipeline, which expects all registered models to be pyfunc
+    models.
     """
 
-    def __init__(self, sklearn_model):
-        """Store the underlying scikit-learn regressor.
+    def __init__(self, model):
+        """Store the underlying fitted model.
 
         Parameters
         ----------
-        sklearn_model
-            A fitted scikit-learn regressor exposing predict.
-
+        model
+            A fitted regressor exposing predict.
         """
-        self.sklearn_model = sklearn_model
+        self.model = model
 
     def predict(self, context, model_input, params=None):
         """Return the point prediction for each input row.
@@ -56,9 +58,8 @@ class IdentityWrapper(mlflow.pyfunc.PythonModel):
         -------
         numpy.ndarray
             Predicted disease progression score per row.
-
         """
-        return self.sklearn_model.predict(model_input)
+        return self.model.predict(model_input)
 
 
 def prepare_train_val_split(
@@ -81,7 +82,6 @@ def prepare_train_val_split(
     -------
     tuple[pandas.DataFrame, pandas.DataFrame, pandas.Series, pandas.Series]
         X_train, X_val, y_train, y_val.
-
     """
     X = train_pdf[FEATURE_COLUMNS]
     y = train_pdf[TARGET_COLUMN]
@@ -100,7 +100,6 @@ def suggest_linear_regression_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
-
     """
     return {
         "fit_intercept": trial.suggest_categorical("fit_intercept", [True, False]),
@@ -120,13 +119,58 @@ def suggest_gradient_boosting_params(trial: optuna.Trial) -> dict[str, Any]:
     -------
     dict[str, Any]
         Hyperparameters to build the model with.
-
     """
     return {
         "n_estimators": trial.suggest_int("n_estimators", 50, 200),
         "max_depth": trial.suggest_int("max_depth", 2, 6),
         "learning_rate": trial.suggest_float("learning_rate", 1e-3, 0.3, log=True),
     }
+
+
+def suggest_ngboost_params(trial: optuna.Trial) -> dict[str, Any]:
+    """Suggest a hyperparameter set for NGBoost.
+
+    Parameters
+    ----------
+    trial : optuna.Trial
+        The current Optuna trial.
+
+    Returns
+    -------
+    dict[str, Any]
+        Hyperparameters to build the model with.
+    """
+    return {
+        "n_estimators": trial.suggest_int("n_estimators", 100, 400),
+        "learning_rate": trial.suggest_float("learning_rate", 1e-3, 0.1, log=True),
+        "minibatch_frac": trial.suggest_float("minibatch_frac", 0.5, 1.0),
+        "base_max_depth": trial.suggest_int("base_max_depth", 2, 4),
+    }
+
+
+def build_ngboost_model(params: dict[str, Any]) -> NGBRegressor:
+    """Build an NGBRegressor from suggested hyperparameters.
+
+    Parameters
+    ----------
+    params : dict[str, Any]
+        Hyperparameters from suggest_ngboost_params, including the
+        base_max_depth key which configures the weak learner rather
+        than being passed directly to NGBRegressor.
+
+    Returns
+    -------
+    NGBRegressor
+        An unfitted NGBoost regressor with a Normal output
+        distribution.
+    """
+    base_max_depth = params.pop("base_max_depth")
+    return NGBRegressor(
+        Dist=Normal,
+        Base=DecisionTreeRegressor(max_depth=base_max_depth),
+        verbose=False,
+        **params,
+    )
 
 
 MODEL_REGISTRY = {
@@ -137,6 +181,10 @@ MODEL_REGISTRY = {
     "gradient_boosting": {
         "suggest_params": suggest_gradient_boosting_params,
         "build_model": lambda params: GradientBoostingRegressor(**params),
+    },
+    "ngboost": {
+        "suggest_params": suggest_ngboost_params,
+        "build_model": build_ngboost_model,
     },
 }
 
@@ -159,7 +207,6 @@ def compute_rmse(y_true, y_pred) -> float:
     -------
     float
         The root mean squared error.
-
     """
     return float(np.sqrt(mean_squared_error(y_true, y_pred)))
 
@@ -173,6 +220,11 @@ def make_objective(
 ):
     """Build an Optuna objective function for the given model type.
 
+    All model types are compared on validation RMSE for a fair,
+    common ranking metric. NGBoost additionally logs validation NLL
+    per trial, since that is the metric that reflects calibration
+    quality rather than point-estimate accuracy.
+
     Parameters
     ----------
     model_type : str
@@ -185,7 +237,6 @@ def make_objective(
     Callable[[optuna.Trial], float]
         An objective function suitable for optuna.Study.optimize.
         Returns validation RMSE; Optuna direction should be minimize.
-
     """
     model_spec = MODEL_REGISTRY[model_type]
 
@@ -193,7 +244,7 @@ def make_objective(
         params = model_spec["suggest_params"](trial)
 
         with mlflow.start_run(nested=True):
-            model = model_spec["build_model"](params)
+            model = model_spec["build_model"](dict(params))
             model.fit(X_train, y_train)
 
             val_preds = model.predict(X_val)
@@ -203,6 +254,11 @@ def make_objective(
             mlflow.log_params(params)
             mlflow.log_metric("val_rmse", val_rmse)
             mlflow.log_metric("val_r2", val_r2)
+
+            if model_type == "ngboost":
+                val_dist = model.pred_dist(X_val)
+                val_nll = float(-val_dist.logpdf(y_val.to_numpy()).mean())
+                mlflow.log_metric("val_nll", val_nll)
 
         return val_rmse
 
@@ -237,13 +293,12 @@ def run_hyperparameter_search(
     tuple[optuna.Study, str]
         The completed Optuna study (with .best_params and .best_value
         as validation RMSE), and the MLflow run ID of the parent run.
-
     """
     X_train, X_val, y_train, y_val = prepare_train_val_split(
         train_pdf=train_pdf, seed=seed
     )
 
-    mlflow.sklearn.autolog(log_models=False)
+    mlflow.sklearn.autolog(log_models=False, disable=(model_type == "ngboost"))
 
     with mlflow.start_run(run_name=f"{model_type}_hyperparam_search") as parent_run:
         study = optuna.create_study(direction="minimize")
@@ -251,7 +306,7 @@ def run_hyperparameter_search(
         study.optimize(objective, n_trials=n_trials)
 
         best_model_spec = MODEL_REGISTRY[model_type]
-        best_model = best_model_spec["build_model"](study.best_params)
+        best_model = best_model_spec["build_model"](dict(study.best_params))
         best_model.fit(X_train, y_train)
 
         best_val_preds = best_model.predict(X_val)
@@ -263,6 +318,12 @@ def run_hyperparameter_search(
         mlflow.log_params(study.best_params)
         mlflow.log_metric("best_val_rmse", study.best_value)
         mlflow.log_metric("best_val_r2", best_val_r2)
+
+        if model_type == "ngboost":
+            best_val_dist = best_model.pred_dist(X_val)
+            best_val_nll = float(-best_val_dist.logpdf(y_val.to_numpy()).mean())
+            mlflow.log_metric("best_val_nll", best_val_nll)
+
         mlflow.pyfunc.log_model(
             "model",
             python_model=wrapped_model,
