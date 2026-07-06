@@ -396,25 +396,19 @@ def run_hyperparameter_search(
         objective = make_objective(model_type, X_train, X_val, y_train, y_val)
         study.optimize(objective, n_trials=n_trials)
 
-        X_full = train_pdf[FEATURE_COLUMNS]
-        y_full = train_pdf[TARGET_COLUMN]
-
-        final_scaler = StandardScaler().fit(X_full)
-        X_full_scaled = final_scaler.transform(X_full)
-        X_val_scaled_final = final_scaler.transform(X_val)
-
         best_model_spec = MODEL_REGISTRY[model_type]
         best_model = best_model_spec["build_model"](dict(study.best_params))
-        best_model.fit(X_full_scaled, y_full)
-
+        best_model.fit(X_train, y_train)
+        
         best_val_preds = best_model.predict(X_val_scaled_final)
         best_val_r2 = r2_score(y_val, best_val_preds)
+        best_val_rmse = compute_rmse(y_val, val_preds)
 
         wrapped_model = ScaledModelWrapper(best_model, final_scaler)
         signature = infer_signature(X_full, wrapped_model.predict(None, X_full))
 
         mlflow.log_params(study.best_params)
-        mlflow.log_metric("best_val_rmse", study.best_value)
+        mlflow.log_metric("best_val_rmse", best_val_rmse)
         mlflow.log_metric("best_val_r2", best_val_r2)
 
         if model_type in DISTRIBUTIONAL_MODELS:
@@ -423,6 +417,16 @@ def run_hyperparameter_search(
             )
             mlflow.log_metric("best_val_nll", best_val_nll)
 
+        # X_full = train_pdf[FEATURE_COLUMNS]
+        # y_full = train_pdf[TARGET_COLUMN]
+
+        # final_scaler = StandardScaler().fit(X_full)
+        # X_full_scaled = final_scaler.transform(X_full)
+
+        # final_model_spec = MODEL_REGISTRY[model_type]
+        # final_model = best_model_spec["build_model"](dict(study.best_params))
+        # final_model.fit(X_full_scaled, y_full)
+        
         mlflow.pyfunc.log_model(
             "model",
             python_model=wrapped_model,
