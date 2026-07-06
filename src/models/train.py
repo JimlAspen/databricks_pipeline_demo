@@ -400,11 +400,11 @@ def run_hyperparameter_search(
         best_model = best_model_spec["build_model"](dict(study.best_params))
         best_model.fit(X_train, y_train)
         
-        best_val_preds = best_model.predict(X_val_scaled_final)
+        best_val_preds = best_model.predict(X_val)
         best_val_r2 = r2_score(y_val, best_val_preds)
-        best_val_rmse = compute_rmse(y_val, val_preds)
+        best_val_rmse = compute_rmse(y_val, best_val_preds)
 
-        wrapped_model = ScaledModelWrapper(best_model, final_scaler)
+        wrapped_model = ScaledModelWrapper(best_model)
         signature = infer_signature(X_train, wrapped_model.predict(None, X_train))
 
         mlflow.log_params(study.best_params)
@@ -413,7 +413,7 @@ def run_hyperparameter_search(
 
         if model_type in DISTRIBUTIONAL_MODELS:
             best_val_nll = compute_val_nll(
-                model_type, best_model, X_val_scaled_final, y_val
+                model_type, best_model, best_val_preds, y_val
             )
             mlflow.log_metric("best_val_nll", best_val_nll)
 
