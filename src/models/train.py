@@ -399,7 +399,7 @@ def run_hyperparameter_search(
         best_model_spec = MODEL_REGISTRY[model_type]
         best_model = best_model_spec["build_model"](dict(study.best_params))
         best_model.fit(X_train, y_train)
-        
+
         best_val_preds = best_model.predict(X_val)
         best_val_r2 = r2_score(y_val, best_val_preds)
         best_val_rmse = compute_rmse(y_val, best_val_preds)
@@ -426,7 +426,7 @@ def run_hyperparameter_search(
         # final_model_spec = MODEL_REGISTRY[model_type]
         # final_model = best_model_spec["build_model"](dict(study.best_params))
         # final_model.fit(X_full_scaled, y_full)
-        
+
         mlflow.pyfunc.log_model(
             "model",
             python_model=wrapped_model,
