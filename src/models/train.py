@@ -410,7 +410,9 @@ def run_hyperparameter_search(
         best_val_rmse = compute_rmse(y_val, best_val_preds)
         
         wrapped_model = ScaledModelWrapper(best_model, scaler)
-        signature = infer_signature(X_train_scaled, wrapped_model.predict(None, X_train_scaled))
+        signature = infer_signature(
+            X_train_scaled, wrapped_model.predict(None, X_train_scaled)
+        )
 
         mlflow.log_params(study.best_params)
         mlflow.log_metric("best_val_rmse", best_val_rmse)
