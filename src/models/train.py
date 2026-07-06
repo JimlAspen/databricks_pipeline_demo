@@ -411,7 +411,7 @@ def run_hyperparameter_search(
 
         wrapped_model = ScaledModelWrapper(best_model, scaler)
         signature = infer_signature(
-            X_train_scaled, wrapped_model.predict(None, X_train_scaled)
+            X_train, wrapped_model.predict(None, X_train)
         )
 
         mlflow.log_params(study.best_params)
